@@ -1,0 +1,40 @@
+# OmniCouncil Default Configuration
+
+scheduler:
+  max_concurrent_tasks: 2
+  ai_min_interval_ms: 2000
+  default_timeout_ms: 120000
+  soft_timeout_ms: 60000
+  hard_timeout_ms: 180000
+  retry:
+    max_retries: 2
+    retry_delay_ms: 3000
+    backoff_multiplier: 1.5
+
+comparison:
+  similarity_method: tfidf
+  tfidf_weight: 0.5
+  lcs_weight: 0.5
+  similarity_threshold: 0.6
+  high_similarity: 0.85
+  difference_trigger: 0.4
+  uniqueness_threshold: 0.3
+  min_paragraph_length: 10
+  max_units_per_ai: 100
+
+rate_limits:
+  deepseek:
+    max_per_minute: 10
+    min_interval_ms: 3000
+    cooldown_after_n: 15
+    cooldown_duration_ms: 30000
+  gemini:
+    max_per_minute: 5
+    min_interval_ms: 5000
+    cooldown_after_n: 10
+    cooldown_duration_ms: 30000
+  qianwen:
+    max_per_minute: 10
+    min_interval_ms: 3000
+    cooldown_after_n: 15
+    cooldown_duration_ms: 30000

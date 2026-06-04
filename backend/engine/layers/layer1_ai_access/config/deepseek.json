@@ -1,0 +1,68 @@
+{
+  "aiId": "deepseek",
+  "aiName": "DeepSeek",
+  "url": "https://chat.deepseek.com",
+  "loginUrl": "https://chat.deepseek.com/sign_in",
+  "selectors": {
+    "loginInput": [
+      "input.ds-input__input[placeholder='Phone number']",
+      "input.ds-input__input[placeholder*='phone']",
+      "input[type='tel']"
+    ],
+    "codeInput": [
+      "input.ds-input__input[placeholder='Code']",
+      "input.ds-input__input[placeholder*='code']",
+      "input[type='text'][class*='code']"
+    ],
+    "passwordToggle": [
+      "div[class*='password']",
+      "text=Login with password"
+    ],
+    "inputBox": [
+      "textarea",
+      "textarea[placeholder*='发送']",
+      "textarea[placeholder*='Send']",
+      "textarea[placeholder*='Message']",
+      "textarea[placeholder*='输入']",
+      "div[contenteditable='true'][role='textbox']",
+      "div[contenteditable='true']"
+    ],
+    "sendButton": [
+      "button[class*='send']",
+      "div[class*='send-btn']",
+      "button[aria-label='Send']",
+      "div[class*='submit']"
+    ],
+    "responseContainer": [
+      "div.ds-markdown.ds-assistant-message-main-content",
+      "div[class*='ds-markdown']",
+      "div[class*='message'][class*='assistant']"
+    ],
+    "responseContent": [
+      "div.ds-markdown.ds-assistant-message-main-content",
+      "div[class*='ds-markdown']",
+      "div.markdown-body"
+    ],
+    "stopButton": [
+      "button[class*='stop']",
+      "div[class*='stop-generating']",
+      "button[class*='Stop']"
+    ],
+    "newChatButton": [
+      "div[class*='new-chat']",
+      "button[class*='new-chat']",
+      "a[href='/']"
+    ]
+  },
+  "detection": {
+    "completionStrategy": "idle_timeout",
+    "idleTimeoutMs": 3000,
+    "responseMinLength": 1
+  },
+  "timing": {
+    "typingDelayMin": 30,
+    "typingDelayMax": 80,
+    "afterSendWaitMs": 1500,
+    "maxResponseWaitMs": 180000
+  }
+}

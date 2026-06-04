@@ -1,0 +1,32 @@
+{
+  "aiId": "qianwen",
+  "aiName": "千问",
+  "url": "https://tongyi.aliyun.com/qianwen",
+  "loginUrl": "https://tongyi.aliyun.com",
+  "selectors": {
+    "inputBox": [
+      "textarea",
+      "div[contenteditable='true'][role='textbox']",
+      "div[contenteditable='true']"
+    ],
+    "sendButton": [
+      "button[class*='send']",
+      "button[aria-label='发送']"
+    ],
+    "responseContainer": [
+      "div[class*='markdown']",
+      "div[class*='message'][class*='assistant']"
+    ],
+    "responseContent": [
+      "div[class*='markdown']"
+    ]
+  },
+  "detection": {
+    "idleTimeoutMs": 3000,
+    "responseMinLength": 1
+  },
+  "timing": {
+    "afterSendWaitMs": 2000,
+    "maxResponseWaitMs": 180000
+  }
+}

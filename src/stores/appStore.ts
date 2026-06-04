@@ -188,6 +188,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         console.error('[Backend Error]', data);
         break;
 
+      case 'engine_status':
+        console.log('[Engine] Status:', data);
+        break;
+
+      case 'task_created':
+        set({ currentTaskId: data.task_id as string });
+        break;
+
+      case 'task_cancelled':
+        set({ currentTaskId: null });
+        break;
+
       case 'pong':
         break;
 

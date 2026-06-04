@@ -1,0 +1,38 @@
+{
+  "aiId": "gemini",
+  "aiName": "Gemini",
+  "url": "https://gemini.google.com/app",
+  "loginUrl": "https://gemini.google.com",
+  "selectors": {
+    "inputBox": [
+      "div.ql-editor.textarea.new-input-ui[contenteditable='true']",
+      "div[contenteditable='true'][role='textbox']",
+      "div[contenteditable='true']",
+      "textarea"
+    ],
+    "sendButton": [
+      "button.send-button",
+      "button[aria-label='Send message']",
+      "button[class*='send']"
+    ],
+    "responseContainer": [
+      "message-content",
+      "div[class*='response-container']",
+      "div[class*='model-response']",
+      "div[class*='markdown']"
+    ],
+    "responseContent": [
+      "message-content .markdown",
+      "div[class*='response-container'] .markdown",
+      "div[class*='markdown']"
+    ]
+  },
+  "detection": {
+    "idleTimeoutMs": 3000,
+    "responseMinLength": 1
+  },
+  "timing": {
+    "afterSendWaitMs": 2000,
+    "maxResponseWaitMs": 180000
+  }
+}

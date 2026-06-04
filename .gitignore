@@ -38,3 +38,7 @@ src-tauri/python-runtime/
 
 # Auth (sensitive)
 auth/
+
+# Browser session data
+backend/engine/data/
+backend/data/
