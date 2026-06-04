@@ -506,20 +506,9 @@ async def handle_reauth(data: dict):
 
     logger.info("Reauth requested for %s", ai_id)
 
-    # Debug: write to fixed path
-    debug_path = "C:\\Users\\green\\.omnicouncil\\reauth_debug.log"
-    os.makedirs(os.path.dirname(debug_path), exist_ok=True)
-
-    with open(debug_path, "a", encoding="utf-8") as f:
-        f.write(f"[{time.strftime('%H:%M:%S')}] Reauth requested for {ai_id}\n")
-        f.write(f"  provider_registry: {provider_registry is not None}\n")
-        f.write(f"  browser_engine: {browser_engine is not None}\n")
-
     # Get provider from registry
     provider = provider_registry.get(ai_id) if provider_registry else None
     if not provider:
-        with open(debug_path, "a", encoding="utf-8") as f:
-            f.write(f"  ERROR: provider not found for {ai_id}\n")
         await ws_manager.broadcast({
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": f"未知的 AI: {ai_id}"}
@@ -527,8 +516,6 @@ async def handle_reauth(data: dict):
         return
 
     cfg = provider.config()
-    with open(debug_path, "a", encoding="utf-8") as f:
-        f.write(f"  provider: {cfg.display_name}, login_url: {cfg.login_url}\n")
 
     await ws_manager.broadcast({
         "type": "auth_status",
@@ -536,32 +523,21 @@ async def handle_reauth(data: dict):
     })
 
     if not browser_engine:
-        with open(debug_path, "a", encoding="utf-8") as f:
-            f.write(f"  ERROR: browser_engine is None\n")
         await ws_manager.broadcast({
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": "浏览器引擎未初始化"}
         })
         return
 
-    with open(debug_path, "a", encoding="utf-8") as f:
-        f.write(f"  Launching login in background task...\n")
-
-    # Run login in background to avoid blocking WebSocket handler
+    # Run login in background
     asyncio.create_task(_do_login(ai_id, cfg.login_url))
 
 
 async def _do_login(ai_id: str, login_url: str):
     """Run login in background and broadcast result."""
-    debug_path = "C:\\Users\\green\\.omnicouncil\\reauth_debug.log"
     try:
-        with open(debug_path, "a", encoding="utf-8") as f:
-            f.write(f"  [{time.strftime('%H:%M:%S')}] Starting login for {ai_id} at {login_url}\n")
-
+        logger.info("Starting login for %s", ai_id)
         success, error_msg = await browser_engine.login(ai_id, login_url)
-
-        with open(debug_path, "a", encoding="utf-8") as f:
-            f.write(f"  [{time.strftime('%H:%M:%S')}] Login result: success={success}, error={error_msg}\n")
 
         if success:
             await ws_manager.broadcast({
@@ -574,10 +550,7 @@ async def _do_login(ai_id: str, login_url: str):
                 "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {error_msg}"}
             })
     except Exception as e:
-        import traceback
-        with open(debug_path, "a", encoding="utf-8") as f:
-            f.write(f"  [{time.strftime('%H:%M:%S')}] EXCEPTION: {e}\n")
-            f.write(traceback.format_exc())
+        logger.exception("Login error for %s", ai_id)
         await ws_manager.broadcast({
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": f"登录异常: {str(e)}"}
