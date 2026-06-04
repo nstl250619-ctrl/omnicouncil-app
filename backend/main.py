@@ -548,28 +548,41 @@ async def handle_reauth(data: dict):
         })
         return
 
-    with open(debug_path, "a") as f:
-        f.write(f"  Calling browser_engine.login()...\n")
+    with open(debug_path, "a", encoding="utf-8") as f:
+        f.write(f"  Launching login in background task...\n")
 
-    # Use the engine's login method with provider's URL
-    success, error_msg = await browser_engine.login(ai_id, cfg.login_url)
+    # Run login in background to avoid blocking WebSocket handler
+    asyncio.create_task(_do_login(ai_id, cfg.login_url, debug_path))
 
-    with open(debug_path, "a") as f:
-        f.write(f"  login() returned: success={success}, error={error_msg}\n")
 
-    if success:
+async def _do_login(ai_id: str, login_url: str, debug_path: str):
+    """Run login in background and broadcast result."""
+    try:
+        with open(debug_path, "a", encoding="utf-8") as f:
+            f.write(f"  [{time.strftime('%H:%M:%S')}] Starting login for {ai_id}\n")
+
+        success, error_msg = await browser_engine.login(ai_id, login_url)
+
+        with open(debug_path, "a", encoding="utf-8") as f:
+            f.write(f"  [{time.strftime('%H:%M:%S')}] Login result: success={success}, error={error_msg}\n")
+
+        if success:
+            await ws_manager.broadcast({
+                "type": "auth_status",
+                "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
+            })
+        else:
+            await ws_manager.broadcast({
+                "type": "auth_status",
+                "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {error_msg}"}
+            })
+    except Exception as e:
+        with open(debug_path, "a", encoding="utf-8") as f:
+            f.write(f"  [{time.strftime('%H:%M:%S')}] EXCEPTION: {e}\n")
         await ws_manager.broadcast({
             "type": "auth_status",
-            "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
+            "data": {"ai_id": ai_id, "status": "failed", "message": f"登录异常: {str(e)}"}
         })
-    else:
-        await ws_manager.broadcast({
-            "type": "auth_status",
-            "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {error_msg}"}
-        })
-
-
-# ========== Session History ==========
 
 from storage.local import LocalStorage
 

@@ -285,20 +285,39 @@ class EmbeddedEngine(BrowserEngine):
         url = page.url
 
         if ai_id == "deepseek":
-            return "/sign_in" not in url and "chat" in url
+            # DeepSeek: logged in if not on sign_in page and on chat page
+            if "/sign_in" in url:
+                return False
+            if "chat.deepseek.com" in url and "/sign_in" not in url:
+                return True
+            return False
 
         elif ai_id == "qianwen":
-            # Check for textarea (chat input) as login indicator
+            # Qianwen: multiple detection strategies
+            # 1. Check URL - if we're on a chat page, we're logged in
+            if "qianwen.com" in url and "login" not in url.lower():
+                return True
+            if "tongyi.aliyun.com" in url and "login" not in url.lower():
+                return True
+
+            # 2. Check for chat input elements
             try:
-                textarea = page.locator("textarea, [contenteditable='true']")
-                if await textarea.count() > 0 and await textarea.first.is_visible(timeout=1000):
+                for sel in ["textarea", "[contenteditable='true']", "[role='textbox']"]:
+                    el = page.locator(sel).first
+                    if await el.count() > 0 and await el.is_visible(timeout=500):
+                        return True
+            except Exception:
+                pass
+
+            # 3. Check for user avatar or profile (logged in indicator)
+            try:
+                avatar = page.locator("[class*='avatar'], [class*='user'], [class*='profile']")
+                if await avatar.count() > 0:
                     return True
             except Exception:
                 pass
-            # Fallback: check URL
-            if "login" not in url and "sign" not in url:
-                if "qianwen" in url or "tongyi" in url:
-                    return True
+
+        return False
 
         return False
 
