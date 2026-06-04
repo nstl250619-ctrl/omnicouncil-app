@@ -53,7 +53,7 @@ impl PythonManager {
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            cmd.creation_flags(0x08000008); // CREATE_NO_WINDOW | DETACHED_PROCESS
         }
 
         let child = cmd.spawn()
