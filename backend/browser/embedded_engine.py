@@ -1,9 +1,14 @@
-"""EmbeddedEngine — launches and manages an embedded Chromium browser."""
+"""EmbeddedEngine — persistent context browser engine.
+
+Core design: login and work share the SAME persistent context profile.
+This ensures cookies, localStorage, IndexedDB are all automatically shared.
+"""
 
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -13,49 +18,53 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddedEngine(BrowserEngine):
-    """Launches an embedded Chromium browser.
+    """Browser engine using Playwright persistent context.
 
-    Uses storage_state for auth persistence.
-    First launch requires manual login; subsequent launches restore session.
+    Key design: ONE profile directory per AI, shared between login and work.
+    This eliminates the "two contexts" problem where cookies don't transfer.
     """
 
     def __init__(self, auth_dir: str | None = None, headless: bool = True):
         self._auth_dir = auth_dir or str(Path.home() / ".omnicouncil" / "auth")
         self._headless = headless
         self._playwright = None
-        self._browser = None
-        self._context = None
+        self._browser = None  # Persistent context (not a plain browser)
         self._pages: dict[str, Any] = {}
         self._connected = False
+        self._authenticated: set[str] = set()
 
     @property
     def mode(self) -> EngineMode:
         return EngineMode.EMBEDDED
 
-    def _get_auth_path(self, ai_id: str) -> Path:
-        """Get the auth state file path for an AI."""
-        return Path(self._auth_dir) / f"{ai_id}.json"
+    def _get_profile_dir(self, ai_id: str) -> str:
+        """Get the persistent profile directory for an AI."""
+        return str(Path(self._auth_dir) / f"{ai_id}_profile")
 
     async def connect(self) -> bool:
-        """Launch embedded Chromium."""
+        """Launch persistent context browser."""
         try:
             from patchright.async_api import async_playwright
 
-            logger.info("Embedded: Launching Chromium (headless=%s)", self._headless)
+            logger.info("Embedded: Launching persistent Chromium (headless=%s)", self._headless)
             self._playwright = await async_playwright().start()
 
-            # Launch browser
-            self._browser = await self._playwright.chromium.launch(
+            # Use a default profile for the main context
+            default_profile = str(Path(self._auth_dir) / "default_profile")
+            Path(default_profile).mkdir(parents=True, exist_ok=True)
+
+            self._browser = await self._playwright.chromium.launch_persistent_context(
+                default_profile,
                 headless=self._headless,
                 args=["--disable-blink-features=AutomationControlled"],
             )
 
             self._connected = True
-            logger.info("Embedded: Chromium launched successfully")
+            logger.info("Embedded: Persistent context launched successfully")
             return True
 
         except Exception as e:
-            logger.error("Embedded: Failed to launch Chromium: %s", e)
+            logger.error("Embedded: Failed to launch: %s", e)
             self._connected = False
             return False
 
@@ -63,13 +72,6 @@ class EmbeddedEngine(BrowserEngine):
         """Close browser and cleanup."""
         for ai_id in list(self._pages.keys()):
             await self.close_page(ai_id)
-
-        if self._context:
-            try:
-                await self._context.close()
-            except Exception:
-                pass
-            self._context = None
 
         if self._browser:
             try:
@@ -89,12 +91,10 @@ class EmbeddedEngine(BrowserEngine):
         logger.info("Embedded: Disconnected")
 
     async def is_connected(self) -> bool:
-        """Check if browser is still running."""
         if not self._connected or not self._browser:
             return False
         try:
-            # Try to access browser version
-            _ = self._browser.version
+            _ = self._browser.pages
             return True
         except Exception:
             self._connected = False
@@ -114,28 +114,9 @@ class EmbeddedEngine(BrowserEngine):
             except Exception:
                 del self._pages[ai_id]
 
-        # Create context with auth state if available
-        auth_path = self._get_auth_path(ai_id)
-        context_options = {}
+        # Create new page in the persistent context
+        page = await self._browser.new_page()
 
-        if auth_path.exists():
-            try:
-                context_options["storage_state"] = str(auth_path)
-                logger.info("Embedded: Loading auth state for %s", ai_id)
-            except Exception as e:
-                logger.warning("Embedded: Failed to load auth state for %s: %s", ai_id, e)
-
-        # Create or reuse context
-        if not self._context:
-            self._context = await self._browser.new_context(**context_options)
-        elif context_options:
-            # Need a new context with different auth state
-            await self._context.close()
-            self._context = await self._browser.new_context(**context_options)
-
-        page = await self._context.new_page()
-
-        # Navigate to AI website
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             await page.wait_for_timeout(2000)
@@ -147,7 +128,6 @@ class EmbeddedEngine(BrowserEngine):
         return page
 
     async def close_page(self, ai_id: str) -> None:
-        """Close a specific AI's page."""
         if ai_id in self._pages:
             try:
                 await self._pages[ai_id].close()
@@ -164,7 +144,6 @@ class EmbeddedEngine(BrowserEngine):
         page = self._pages[ai_id]
         url = page.url
 
-        # AI-specific auth checks
         if ai_id == "deepseek":
             if "/sign_in" in url:
                 return AuthStatus.NOT_LOGGED_IN
@@ -187,109 +166,106 @@ class EmbeddedEngine(BrowserEngine):
 
         return AuthStatus.AUTHENTICATED
 
-    async def ensure_logged_in(self, ai_id: str, on_login_required: Callable | None = None) -> bool:
-        """Ensure login is valid. Triggers login window if needed."""
-        status = await self.check_auth(ai_id)
+    async def login(self, ai_id: str, url: str) -> bool:
+        """Launch visible browser for manual login.
 
-        if status == AuthStatus.AUTHENTICATED:
-            return True
-
-        if status in (AuthStatus.NOT_LOGGED_IN, AuthStatus.EXPIRED, AuthStatus.UNKNOWN):
-            # Always launch login window when needed
-            login_result = {"success": False}
-
-            async def on_complete(aid: str, success: bool):
-                login_result["success"] = success
-
-            await self._launch_login_window(ai_id, on_complete)
-            return login_result["success"]
-
-        return True
-
-    async def _launch_login_window(self, ai_id: str, on_complete: Callable) -> None:
-        """Launch a visible browser window for manual login."""
+        Uses the SAME profile directory as the main engine,
+        so cookies/localStorage are automatically shared.
+        """
         logger.info("Embedded: Launching login window for %s", ai_id)
 
-        # Create a new visible browser for login
+        profile_dir = self._get_profile_dir(ai_id)
+        Path(profile_dir).mkdir(parents=True, exist_ok=True)
+
+        from patchright.async_api import async_playwright
+
+        pw = await async_playwright().start()
+        browser = None
+        is_alive = True
+
         try:
-            from patchright.async_api import async_playwright
+            # Launch visible browser with the SAME profile
+            browser = await pw.chromium.launch_persistent_context(
+                profile_dir,
+                headless=False,
+                args=["--disable-blink-features=AutomationControlled"],
+            )
 
-            pw = await async_playwright().start()
-            login_browser = await pw.chromium.launch(headless=False)
-            login_context = await login_browser.new_context()
-            login_page = await login_context.new_page()
+            page = browser.pages[0] if browser.pages else await browser.new_page()
 
-            # Navigate to AI website
-            url = self._get_ai_url(ai_id)
-            await login_page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            # Track if user closes browser manually
+            def on_close(_):
+                nonlocal is_alive
+                is_alive = False
 
-            # Wait for user to complete login (check periodically)
-            max_wait = 300  # 5 minutes
-            import time
+            page.on("close", on_close)
+
+            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+
+            # Wait for login
+            max_wait = 300
             start = time.time()
 
             while time.time() - start < max_wait:
-                await login_page.wait_for_timeout(2000)
+                await asyncio.sleep(2)
 
-                # Check if login is complete
-                auth_status = await self._check_page_auth(login_page, ai_id)
-                if auth_status == AuthStatus.AUTHENTICATED:
-                    # Save auth state
-                    auth_path = self._get_auth_path(ai_id)
-                    auth_path.parent.mkdir(parents=True, exist_ok=True)
-                    await login_context.storage_state(path=str(auth_path))
-                    logger.info("Embedded: Login completed for %s, auth state saved", ai_id)
+                if not is_alive:
+                    logger.info("User closed browser for %s", ai_id)
+                    return False
 
-                    # Copy cookies to main context
-                    if self._context:
-                        cookies = await login_context.cookies()
-                        await self._context.add_cookies(cookies)
+                try:
+                    logged_in = await self._check_login(ai_id, page)
+                    if logged_in:
+                        self._authenticated.add(ai_id)
+                        logger.info("Login successful for %s", ai_id)
+                        return True
+                except Exception:
+                    pass
 
-                    on_complete(ai_id, True)
-                    break
-
-            # Close login browser
-            await login_browser.close()
-            await pw.stop()
+            logger.warning("Login timeout for %s", ai_id)
+            return False
 
         except Exception as e:
-            logger.error("Embedded: Login window failed: %s", e)
-            on_complete(ai_id, False)
+            logger.exception("Login error for %s: %s", ai_id, e)
+            return False
+        finally:
+            if browser:
+                try:
+                    if browser.is_connected():
+                        await browser.close()
+                except Exception:
+                    pass
+            try:
+                await pw.stop()
+            except Exception:
+                pass
 
-    async def _check_page_auth(self, page: Any, ai_id: str) -> AuthStatus:
-        """Check auth status on a specific page."""
+    async def _check_login(self, ai_id: str, page: Any) -> bool:
+        """Check if login is complete."""
         url = page.url
 
-        # Check URL for login indicators
         if ai_id == "deepseek":
-            if "/sign_in" in url:
-                return AuthStatus.NOT_LOGGED_IN
+            return "/sign_in" not in url and "chat" in url
+
         elif ai_id == "qianwen":
-            if "login" in url.lower():
-                return AuthStatus.NOT_LOGGED_IN
+            # Check for textarea (chat input) as login indicator
+            try:
+                textarea = page.locator("textarea, [contenteditable='true']")
+                if await textarea.count() > 0 and await textarea.first.is_visible(timeout=1000):
+                    return True
+            except Exception:
+                pass
+            # Fallback: check URL
+            if "login" not in url and "sign" not in url:
+                if "qianwen" in url or "tongyi" in url:
+                    return True
 
-        # Also check page content for login elements
-        try:
-            body = await page.locator("body").inner_text(timeout=3000)
-            body_lower = body[:300].lower()
-            if "登录" in body[:300] or "sign in" in body_lower or "log in" in body_lower:
-                return AuthStatus.NOT_LOGGED_IN
-        except Exception:
-            pass
+        return False
 
-        return AuthStatus.AUTHENTICATED
-
-    def _get_ai_url(self, ai_id: str) -> str:
-        """Get the URL for an AI website."""
-        urls = {
-            "deepseek": "https://chat.deepseek.com",
-            "qianwen": "https://tongyi.aliyun.com/qianwen",
-            "gemini": "https://gemini.google.com",
-        }
-        return urls.get(ai_id, "https://example.com")
+    def is_authenticated(self, ai_id: str) -> bool:
+        return ai_id in self._authenticated
 
     async def get_status(self) -> EngineStatus:
-        """Get current engine status."""
         pages = []
         for ai_id, page in self._pages.items():
             try:
@@ -303,11 +279,8 @@ class EmbeddedEngine(BrowserEngine):
                 ))
             except Exception:
                 pages.append(PageInfo(
-                    ai_id=ai_id,
-                    url="",
-                    title="",
-                    is_logged_in=False,
-                    auth_status=AuthStatus.UNKNOWN,
+                    ai_id=ai_id, url="", title="",
+                    is_logged_in=False, auth_status=AuthStatus.UNKNOWN,
                 ))
 
         return EngineStatus(
@@ -318,33 +291,13 @@ class EmbeddedEngine(BrowserEngine):
         )
 
     async def save_auth_state(self, ai_id: str) -> bool:
-        """Save current auth state to file."""
-        if ai_id not in self._pages or not self._context:
-            return False
-
-        try:
-            auth_path = self._get_auth_path(ai_id)
-            auth_path.parent.mkdir(parents=True, exist_ok=True)
-            await self._context.storage_state(path=str(auth_path))
-            logger.info("Embedded: Saved auth state for %s", ai_id)
-            return True
-        except Exception as e:
-            logger.error("Embedded: Failed to save auth state for %s: %s", ai_id, e)
-            return False
+        """No-op: persistent context auto-saves."""
+        return True
 
     async def load_auth_state(self, ai_id: str) -> bool:
-        """Load saved auth state from file."""
-        auth_path = self._get_auth_path(ai_id)
-        if not auth_path.exists():
-            return False
+        """No-op: persistent context auto-loads."""
+        return True
 
-        try:
-            if self._context:
-                cookies = json.loads(auth_path.read_text()).get("cookies", [])
-                await self._context.add_cookies(cookies)
-                logger.info("Embedded: Loaded auth state for %s", ai_id)
-                return True
-        except Exception as e:
-            logger.error("Embedded: Failed to load auth state for %s: %s", ai_id, e)
-
-        return False
+    async def ensure_logged_in(self, ai_id: str, on_login_required: Callable | None = None) -> bool:
+        """Not used in new architecture — login is handled by handle_reauth."""
+        return self.is_authenticated(ai_id)

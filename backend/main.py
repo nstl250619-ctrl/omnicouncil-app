@@ -436,124 +436,49 @@ async def handle_get_status(websocket: WebSocket):
 
 
 async def handle_reauth(data: dict):
-    """Handle re-authentication request by launching a visible browser for login."""
+    """Handle re-authentication via the engine's login method."""
     ai_id = data.get("ai_id")
     if not ai_id:
         return
 
     logger.info("Reauth requested for %s", ai_id)
 
-    # Notify frontend: login started
     await ws_manager.broadcast({
         "type": "auth_status",
         "data": {"ai_id": ai_id, "status": "connecting", "message": "正在打开登录窗口..."}
     })
 
-    try:
-        # Launch visible browser for login
-        from patchright.async_api import async_playwright
-
-        urls = {
-            "deepseek": "https://chat.deepseek.com",
-            "qianwen": "https://tongyi.aliyun.com/qianwen",
-        }
-        url = urls.get(ai_id, "https://example.com")
-
-        # Use user_data_dir to persist login session
-        auth_dir = str(Path.home() / ".omnicouncil" / "auth")
-        Path(auth_dir).mkdir(parents=True, exist_ok=True)
-        profile_dir = str(Path(auth_dir) / f"{ai_id}_profile")
-
-        pw = await async_playwright().start()
-        browser = await pw.chromium.launch_persistent_context(
-            profile_dir,
-            headless=False,
-            args=["--disable-blink-features=AutomationControlled"],
-        )
-        page = browser.pages[0] if browser.pages else await browser.new_page()
-
-        await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-
-        # Wait for login (poll every 2 seconds, max 5 minutes)
-        max_wait = 300
-        start = time.time()
-
-        while time.time() - start < max_wait:
-            await asyncio.sleep(2)
-            current_url = page.url
-
-            # Check if login is complete by checking for chat interface elements
-            logged_in = False
-
-            if ai_id == "deepseek":
-                logged_in = "/sign_in" not in current_url
-            elif ai_id == "qianwen":
-                # Check for chat input or URL change
-                try:
-                    # Check if we're on a chat page
-                    if "/chat" in current_url or "qianwen.com" in current_url:
-                        # Look for textarea or contenteditable (chat input)
-                        textarea = page.locator("textarea")
-                        if await textarea.count() > 0 and await textarea.first.is_visible(timeout=2000):
-                            logged_in = True
-                except Exception:
-                    pass
-
-            if logged_in:
-                # Save auth state
-                try:
-                    auth_path = Path(auth_dir) / f"{ai_id}.json"
-                    await browser.storage_state(path=str(auth_path))
-                    logger.info("Saved auth state for %s", ai_id)
-                except Exception as e:
-                    logger.warning("Failed to save auth state: %s", e)
-
-                # Copy cookies to main browser context if available
-                if browser_engine and hasattr(browser_engine, '_context') and browser_engine._context:
-                    try:
-                        cookies = await browser.cookies()
-                        await browser_engine._context.add_cookies(cookies)
-                        logger.info("Copied %d cookies to main context for %s", len(cookies), ai_id)
-                    except Exception as e:
-                        logger.warning("Failed to copy cookies: %s", e)
-
-                logger.info("Login successful for %s", ai_id)
-                await ws_manager.broadcast({
-                    "type": "auth_status",
-                    "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
-                })
-
-                # Safely close browser
-                try:
-                    await browser.close()
-                except Exception:
-                    pass
-                try:
-                    await pw.stop()
-                except Exception:
-                    pass
-                return
-
-        # Timeout
-        logger.warning("Login timeout for %s", ai_id)
+    urls = {
+        "deepseek": "https://chat.deepseek.com",
+        "qianwen": "https://tongyi.aliyun.com/qianwen",
+    }
+    url = urls.get(ai_id)
+    if not url:
         await ws_manager.broadcast({
             "type": "auth_status",
-            "data": {"ai_id": ai_id, "status": "failed", "message": "登录超时"}
+            "data": {"ai_id": ai_id, "status": "failed", "message": f"未知的 AI: {ai_id}"}
         })
-        try:
-            await browser.close()
-        except Exception:
-            pass
-        try:
-            await pw.stop()
-        except Exception:
-            pass
+        return
 
-    except Exception as e:
-        logger.exception("Login failed for %s", ai_id)
+    if not browser_engine:
         await ws_manager.broadcast({
             "type": "auth_status",
-            "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {str(e)}"}
+            "data": {"ai_id": ai_id, "status": "failed", "message": "浏览器引擎未初始化"}
+        })
+        return
+
+    # Use the engine's login method (shared profile directory)
+    success = await browser_engine.login(ai_id, url)
+
+    if success:
+        await ws_manager.broadcast({
+            "type": "auth_status",
+            "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
+        })
+    else:
+        await ws_manager.broadcast({
+            "type": "auth_status",
+            "data": {"ai_id": ai_id, "status": "failed", "message": "登录失败或超时"}
         })
 
 
