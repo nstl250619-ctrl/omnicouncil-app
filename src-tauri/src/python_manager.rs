@@ -49,8 +49,15 @@ impl PythonManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        // Note: Do NOT use CREATE_NO_WINDOW here — it propagates to child processes
-        // (Chromium), preventing them from creating visible windows.
+        // Hide Python console window on Windows
+        // Note: CREATE_NO_WINDOW propagates to child processes, but Playwright's
+        // Chromium is launched via a separate Node.js driver process which handles
+        // its own window creation.
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
 
         let child = cmd.spawn()
             .map_err(|e| format!("Failed to start Python: {}", e))?;

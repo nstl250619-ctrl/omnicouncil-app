@@ -156,30 +156,36 @@ class EmbeddedEngine(BrowserEngine):
 
             debug(f"Navigating to {url}...")
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            debug("Navigation complete, waiting for login...")
+            debug("Navigation complete, waiting for page to stabilize...")
+
+            # Wait for page to fully stabilize (prevents false positives from redirects)
+            await asyncio.sleep(5)
 
             # Poll for login
             max_wait = 300
             start = time.time()
             logged_in = False
+            min_check_time = 10  # Don't check login for first 10 seconds
 
             while time.time() - start < max_wait:
+                elapsed = time.time() - start
+
                 # Check if user closed browser
                 if disconnected.is_set():
                     debug("Browser disconnected by user")
-                    # Check if login was saved before disconnect
                     logged_in = self._check_saved_login(ai_id)
                     debug(f"Saved login check: {logged_in}")
                     break
 
-                # Check login status
-                try:
-                    logged_in = await self._check_login(ai_id, page)
-                    if logged_in:
-                        debug("Login detected!")
-                        break
-                except Exception as e:
-                    debug(f"Login check error: {e}")
+                # Only check login after minimum wait time
+                if elapsed >= min_check_time:
+                    try:
+                        logged_in = await self._check_login(ai_id, page)
+                        if logged_in:
+                            debug(f"Login detected after {elapsed:.1f}s!")
+                            break
+                    except Exception as e:
+                        debug(f"Login check error: {e}")
 
                 await asyncio.sleep(2)
 
@@ -233,29 +239,43 @@ class EmbeddedEngine(BrowserEngine):
         return False
 
     async def _check_login(self, ai_id: str, page: Any) -> bool:
-        """Check if login is complete."""
+        """Check if login is complete. Must be strict to avoid false positives."""
         url = page.url
 
         if ai_id == "deepseek":
+            # DeepSeek: must be on chat page, not sign_in page
             if "/sign_in" in url:
                 return False
             if "chat.deepseek.com" in url and "/sign_in" not in url:
-                return True
+                # Double-check: look for textarea (chat input)
+                try:
+                    textarea = page.locator("textarea")
+                    if await textarea.count() > 0 and await textarea.first.is_visible(timeout=1000):
+                        return True
+                except:
+                    pass
             return False
 
         elif ai_id == "qianwen":
-            # Check URL first
-            if "qianwen.com" in url and "login" not in url.lower():
-                return True
-            if "tongyi.aliyun.com" in url and "login" not in url.lower():
-                return True
+            # Qianwen: must have actual chat interface, not just landing page
+            # Landing page has "qianwen.com" but no chat input
+            # Chat page has textarea/contenteditable AND specific UI elements
 
-            # Check for chat input elements
+            # First check: URL must NOT be the landing page
+            if url in ("https://qianwen.aliyun.com/", "https://www.qianwen.com/", "https://tongyi.aliyun.com/"):
+                return False
+
+            # Second check: must have chat input AND it must be interactive
             try:
-                for sel in ["textarea", "[contenteditable='true']", "[role='textbox']"]:
+                for sel in ["textarea", "[contenteditable='true'][role='textbox']"]:
                     el = page.locator(sel).first
-                    if await el.count() > 0 and await el.is_visible(timeout=500):
-                        return True
+                    if await el.count() > 0 and await el.is_visible(timeout=1000):
+                        # Third check: verify we're on a chat page by checking for
+                        # chat-specific elements (not just any textarea)
+                        body = await page.locator("body").inner_text(timeout=2000)
+                        # Chat pages typically have "新建对话" or similar
+                        if any(kw in body for kw in ["新建对话", "新建聊天", "New chat", "千问"]):
+                            return True
             except:
                 pass
 
