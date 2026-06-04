@@ -67,10 +67,14 @@ fn read_config() -> Result<String, String> {
 
 #[tauri::command]
 fn write_config(content: String) -> Result<(), String> {
+    // Validate JSON before writing
+    serde_json::from_str::<serde_json::Value>(&content)
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
+
     let dir = get_config_dir();
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create config dir: {}", e))?;
     let path = get_config_path();
-    fs::write(&path, content).map_err(|e| format!("Failed to write config: {}", e))
+    fs::write(&path, &content).map_err(|e| format!("Failed to write config: {}", e))
 }
 
 // ========== Chrome Launch ==========

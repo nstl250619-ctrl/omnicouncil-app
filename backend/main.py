@@ -7,6 +7,7 @@ import asyncio
 import logging
 import sys
 import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
@@ -54,11 +55,15 @@ class ConnectionManager:
 
     async def broadcast(self, message: dict):
         """Send message to all connected clients."""
+        dead = []
         for connection in self.active_connections[:]:
             try:
                 await connection.send_json(message)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to send to WebSocket: %s", e)
+                dead.append(connection)
+        for conn in dead:
+            self.disconnect(conn)
 
     async def send_personal(self, websocket: WebSocket, message: dict):
         """Send message to a specific client."""
@@ -207,7 +212,18 @@ class GlobalExceptionHandler:
 
     def _sync_hook(self, exc_type, exc_value, exc_tb):
         error_info = self._format(exc_type, exc_value)
-        asyncio.create_task(self.ws.broadcast({"type": "error", "data": error_info}))
+        # Log to file since we can't safely use async from sync context
+        logger.error("Unhandled exception: %s - %s", exc_type.__name__, exc_value)
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.call_soon_threadsafe(
+                    lambda: asyncio.ensure_future(
+                        self.ws.broadcast({"type": "error", "data": error_info})
+                    )
+                )
+        except RuntimeError:
+            pass  # No loop available
 
     def _format(self, exc_type, exc_value) -> dict:
         error_map = {
@@ -298,7 +314,7 @@ app = FastAPI(title="OmniCouncil", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["tauri://localhost", "http://localhost:8765", "http://127.0.0.1:8765"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -339,7 +355,19 @@ async def websocket_endpoint(websocket: WebSocket):
             msg_type = data.get("type")
 
             if msg_type == "submit_query":
-                await handle_submit_query(data.get("data", {}))
+                payload = data.get("data", {})
+                # Validate required fields
+                if not isinstance(payload.get("query", ""), str):
+                    await ws_manager.send_personal(websocket, {
+                        "type": "error", "data": {"error": "Invalid query", "recoverable": True}
+                    })
+                    continue
+                if not isinstance(payload.get("ai_ids", []), list):
+                    await ws_manager.send_personal(websocket, {
+                        "type": "error", "data": {"error": "Invalid ai_ids", "recoverable": True}
+                    })
+                    continue
+                await handle_submit_query(payload)
             elif msg_type == "cancel_task":
                 await handle_cancel_task(data.get("data", {}))
             elif msg_type == "get_status":
@@ -382,7 +410,7 @@ async def handle_submit_query(data: dict):
         })
         return
 
-    task_id = f"task_{int(time.time())}_{id(query) % 10000}"
+    task_id = f"task_{uuid.uuid4().hex[:12]}"
 
     logger.info("Task %s: submitting query to %s", task_id, ai_ids)
 
@@ -471,12 +499,6 @@ async def handle_reauth(data: dict):
         return
 
     cfg = provider.config()
-    if not adapter:
-        await ws_manager.broadcast({
-            "type": "auth_status",
-            "data": {"ai_id": ai_id, "status": "failed", "message": f"未知的 AI: {ai_id}"}
-        })
-        return
 
     await ws_manager.broadcast({
         "type": "auth_status",

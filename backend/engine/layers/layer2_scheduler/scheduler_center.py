@@ -54,6 +54,7 @@ class SchedulerCenter:
         self._event_bus = event_bus or EventBus()
         self._tasks: dict[str, TaskStatusInfo] = {}
         self._cancel_events: dict[str, asyncio.Event] = {}
+        self._max_stored_tasks = 1000  # LRU limit
 
         self._retry = RetryManager(max_retries=max_retries)
         self._timeout = TimeoutManager(soft_timeout_ms=soft_timeout_ms, hard_timeout_ms=hard_timeout_ms)
@@ -270,3 +271,26 @@ class SchedulerCenter:
                 unavailable.append((status.ai_id, status.status.value))
 
         return AIAvailability(available=available, unavailable=unavailable)
+
+    def cleanup_old_tasks(self, max_age_seconds: float = 3600) -> int:
+        """Remove completed/failed tasks older than max_age_seconds."""
+        now = time.time()
+        to_remove = []
+        for task_id, task in self._tasks.items():
+            if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+                if now - task.updated_at > max_age_seconds:
+                    to_remove.append(task_id)
+
+        for task_id in to_remove:
+            del self._tasks[task_id]
+            self._cancel_events.pop(task_id, None)
+
+        # Enforce max size (remove oldest)
+        while len(self._tasks) > self._max_stored_tasks:
+            oldest = min(self._tasks, key=lambda k: self._tasks[k].updated_at)
+            del self._tasks[oldest]
+            self._cancel_events.pop(oldest, None)
+
+        if to_remove:
+            logger.info("Cleaned up %d old tasks", len(to_remove))
+        return len(to_remove)
