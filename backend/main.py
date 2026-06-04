@@ -26,6 +26,8 @@ from engine.layers.layer1_ai_access.adapters.qianwen import QianwenAdapter
 from engine.layers.layer2_scheduler.scheduler_center import SchedulerCenter
 from engine.layers.layer3_collector.result_collector import ResultCollector
 from engine.layers.layer4_comparison.comparison_engine import ComparisonEngine
+from browser.engine import EngineMode, AuthStatus
+from browser.factory import create_engine
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("omnicouncil")
@@ -75,6 +77,7 @@ ai_manager: AIAccessManager | None = None
 scheduler: SchedulerCenter | None = None
 collector: ResultCollector | None = None
 comparison_engine: ComparisonEngine | None = None
+browser_engine = None
 
 
 # ========== Event Handlers (Engine → WebSocket) ==========
@@ -219,7 +222,7 @@ class GlobalExceptionHandler:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    global event_bus, ai_manager, scheduler, collector, comparison_engine
+    global event_bus, ai_manager, scheduler, collector, comparison_engine, browser_engine
 
     logger.info("Starting OmniCouncil backend...")
 
@@ -228,6 +231,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize config
     config = load_config()
+
+    # Initialize Browser Engine
+    browser_mode = "embedded"  # Default, will be overridden by config
+    browser_engine = create_engine(browser_mode, headless=True)
+    connected = await browser_engine.connect()
+    logger.info("Browser engine: %s (connected=%s)", browser_mode, connected)
 
     # Initialize Layer 1: AI Access
     ai_manager = AIAccessManager(event_bus=event_bus)
@@ -267,6 +276,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Cleanup
     logger.info("Shutting down OmniCouncil backend...")
+    if browser_engine:
+        await browser_engine.disconnect()
     if ai_manager:
         await ai_manager.destroy()
     EventBus.reset()
@@ -322,6 +333,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 await handle_cancel_task(data.get("data", {}))
             elif msg_type == "get_status":
                 await handle_get_status(websocket)
+            elif msg_type == "reauth":
+                await handle_reauth(data.get("data", {}))
             elif msg_type == "ping":
                 await ws_manager.send_personal(websocket, {"type": "pong", "data": {}})
 
@@ -415,6 +428,29 @@ async def handle_get_status(websocket: WebSocket):
         "type": "status",
         "data": {"connected": True, "ais": ai_status}
     })
+
+
+async def handle_reauth(data: dict):
+    """Handle re-authentication request."""
+    ai_id = data.get("ai_id")
+    if not ai_id or not browser_engine:
+        return
+
+    logger.info("Reauth requested for %s", ai_id)
+
+    async def on_login_complete(ai_id: str, success: bool):
+        if success:
+            await ws_manager.broadcast({
+                "type": "auth_status",
+                "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
+            })
+        else:
+            await ws_manager.broadcast({
+                "type": "auth_status",
+                "data": {"ai_id": ai_id, "status": "failed", "message": "登录失败"}
+            })
+
+    await browser_engine.ensure_logged_in(ai_id, on_login_required=lambda aid, status: None)
 
 
 # ========== Entry Point ==========
