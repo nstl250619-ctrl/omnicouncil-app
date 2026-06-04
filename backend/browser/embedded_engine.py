@@ -173,13 +173,9 @@ class EmbeddedEngine(BrowserEngine):
         import traceback as tb
         import sys
 
-        # Use absolute path for debug log
-        if os.name == "nt":
-            _debug_dir = os.path.join(os.environ.get("USERPROFILE", "C:\\Users\\green"), ".omnicouncil")
-        else:
-            _debug_dir = os.path.join(str(Path.home()), ".omnicouncil")
-        os.makedirs(_debug_dir, exist_ok=True)
-        debug_log = os.path.join(_debug_dir, "login_debug.log")
+        # Use fixed path for debug log
+        debug_log = "C:\\Users\\green\\.omnicouncil\\login_debug.log"
+        os.makedirs(os.path.dirname(debug_log), exist_ok=True)
 
         def debug(msg: str):
             """Write to both logger and file."""

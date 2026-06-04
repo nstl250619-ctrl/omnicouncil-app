@@ -506,13 +506,9 @@ async def handle_reauth(data: dict):
 
     logger.info("Reauth requested for %s", ai_id)
 
-    # Debug: write to file (absolute path)
-    if os.name == "nt":
-        _debug_dir = os.path.join(os.environ.get("USERPROFILE", "C:\\Users\\green"), ".omnicouncil")
-    else:
-        _debug_dir = os.path.join(str(Path.home()), ".omnicouncil")
-    os.makedirs(_debug_dir, exist_ok=True)
-    debug_path = os.path.join(_debug_dir, "reauth_debug.log")
+    # Debug: write to fixed path
+    debug_path = "C:\\Users\\green\\.omnicouncil\\reauth_debug.log"
+    os.makedirs(os.path.dirname(debug_path), exist_ok=True)
 
     with open(debug_path, "a", encoding="utf-8") as f:
         f.write(f"[{time.strftime('%H:%M:%S')}] Reauth requested for {ai_id}\n")
@@ -531,7 +527,7 @@ async def handle_reauth(data: dict):
         return
 
     cfg = provider.config()
-    with open(debug_path, "a") as f:
+    with open(debug_path, "a", encoding="utf-8") as f:
         f.write(f"  provider: {cfg.display_name}, login_url: {cfg.login_url}\n")
 
     await ws_manager.broadcast({
@@ -540,7 +536,7 @@ async def handle_reauth(data: dict):
     })
 
     if not browser_engine:
-        with open(debug_path, "a") as f:
+        with open(debug_path, "a", encoding="utf-8") as f:
             f.write(f"  ERROR: browser_engine is None\n")
         await ws_manager.broadcast({
             "type": "auth_status",
@@ -552,14 +548,15 @@ async def handle_reauth(data: dict):
         f.write(f"  Launching login in background task...\n")
 
     # Run login in background to avoid blocking WebSocket handler
-    asyncio.create_task(_do_login(ai_id, cfg.login_url, debug_path))
+    asyncio.create_task(_do_login(ai_id, cfg.login_url))
 
 
-async def _do_login(ai_id: str, login_url: str, debug_path: str):
+async def _do_login(ai_id: str, login_url: str):
     """Run login in background and broadcast result."""
+    debug_path = "C:\\Users\\green\\.omnicouncil\\reauth_debug.log"
     try:
         with open(debug_path, "a", encoding="utf-8") as f:
-            f.write(f"  [{time.strftime('%H:%M:%S')}] Starting login for {ai_id}\n")
+            f.write(f"  [{time.strftime('%H:%M:%S')}] Starting login for {ai_id} at {login_url}\n")
 
         success, error_msg = await browser_engine.login(ai_id, login_url)
 
@@ -577,8 +574,10 @@ async def _do_login(ai_id: str, login_url: str, debug_path: str):
                 "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {error_msg}"}
             })
     except Exception as e:
+        import traceback
         with open(debug_path, "a", encoding="utf-8") as f:
             f.write(f"  [{time.strftime('%H:%M:%S')}] EXCEPTION: {e}\n")
+            f.write(traceback.format_exc())
         await ws_manager.broadcast({
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": f"登录异常: {str(e)}"}
