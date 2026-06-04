@@ -49,12 +49,8 @@ impl PythonManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        // Hide console window on Windows
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-        }
+        // Note: Do NOT use CREATE_NO_WINDOW here — it propagates to child processes
+        // (Chromium), preventing them from creating visible windows.
 
         let child = cmd.spawn()
             .map_err(|e| format!("Failed to start Python: {}", e))?;

@@ -5,12 +5,20 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
+
+# Ensure critical Windows env vars are present (Tauri may strip them)
+if sys.platform == "win32":
+    if "LOCALAPPDATA" not in os.environ:
+        user_profile = os.path.expanduser("~")
+        os.environ["LOCALAPPDATA"] = os.path.join(user_profile, "AppData", "Local")
+        os.environ["USERPROFILE"] = user_profile
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware

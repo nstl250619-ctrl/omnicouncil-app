@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import time
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -167,35 +169,55 @@ class EmbeddedEngine(BrowserEngine):
         return AuthStatus.AUTHENTICATED
 
     async def login(self, ai_id: str, url: str) -> tuple[bool, str]:
-        """Launch visible browser for manual login.
+        """Launch visible browser for manual login."""
+        import traceback as tb
+        import sys
 
-        Returns (success: bool, error_message: str).
-        Uses the SAME profile directory as the main engine,
-        so cookies/localStorage are automatically shared.
-        """
-        logger.info("Embedded: Launching login window for %s at %s", ai_id, url)
+        debug_log = Path.home() / ".omnicouncil" / "login_debug.log"
+        debug_log.parent.mkdir(parents=True, exist_ok=True)
+
+        def debug(msg: str):
+            """Write to both logger and file."""
+            logger.info(msg)
+            with open(debug_log, "a", encoding="utf-8") as f:
+                f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
+
+        debug(f"=== Login attempt for {ai_id} ===")
+        debug(f"URL: {url}")
+        debug(f"Python: {sys.executable}")
+        debug(f"HOME: {Path.home()}")
+        debug(f"LOCALAPPDATA: {os.environ.get('LOCALAPPDATA', 'NOT SET')}")
 
         profile_dir = self._get_profile_dir(ai_id)
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
-        logger.info("Embedded: Profile dir: %s", profile_dir)
+        debug(f"Profile dir: {profile_dir}")
 
-        # Reuse the main Playwright instance to avoid conflicts
-        if not self._playwright:
-            logger.info("Embedded: Creating new Playwright instance")
+        # Check if patchright browser is installed
+        try:
             from patchright.async_api import async_playwright
-            self._playwright = await async_playwright().start()
+            pw = await async_playwright().start()
+            browser_path = pw.chromium.executable_path
+            debug(f"Chromium path: {browser_path}")
+            await pw.stop()
+        except Exception as e:
+            debug(f"Patchright check failed: {e}")
 
+        # Create fresh playwright for login (don't reuse main instance)
+        pw = None
         browser = None
         is_alive = True
 
         try:
-            logger.info("Embedded: Launching persistent context (headless=False)")
-            browser = await self._playwright.chromium.launch_persistent_context(
+            debug("Creating Playwright instance...")
+            pw = await async_playwright().start()
+
+            debug("Launching persistent context (headless=False)...")
+            browser = await pw.chromium.launch_persistent_context(
                 profile_dir,
                 headless=False,
                 args=["--disable-blink-features=AutomationControlled"],
             )
-            logger.info("Embedded: Browser launched successfully")
+            debug("Browser launched successfully")
 
             page = browser.pages[0] if browser.pages else await browser.new_page()
 
@@ -206,9 +228,9 @@ class EmbeddedEngine(BrowserEngine):
 
             page.on("close", on_close)
 
-            logger.info("Embedded: Navigating to %s", url)
+            debug(f"Navigating to {url}...")
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            logger.info("Embedded: Navigation complete, waiting for login...")
+            debug(f"Navigation complete, waiting for login...")
 
             # Wait for login
             max_wait = 300
@@ -218,30 +240,38 @@ class EmbeddedEngine(BrowserEngine):
                 await asyncio.sleep(2)
 
                 if not is_alive:
-                    logger.info("User closed browser for %s", ai_id)
+                    debug("User closed browser")
                     return False, "用户关闭了浏览器窗口"
 
                 try:
                     logged_in = await self._check_login(ai_id, page)
                     if logged_in:
                         self._authenticated.add(ai_id)
-                        logger.info("Login successful for %s", ai_id)
+                        debug(f"Login successful for {ai_id}")
                         return True, ""
-                except Exception:
-                    pass
+                except Exception as check_err:
+                    debug(f"Login check error: {check_err}")
 
-            logger.warning("Login timeout for %s", ai_id)
+            debug("Login timeout")
             return False, "登录超时（5分钟）"
 
         except Exception as e:
+            import traceback as tb
             error_msg = f"{type(e).__name__}: {str(e)}"
-            logger.exception("Login error for %s: %s", ai_id, error_msg)
+            trace = tb.format_exc()
+            debug(f"ERROR: {error_msg}")
+            debug(f"TRACEBACK:\n{trace}")
             return False, error_msg
         finally:
             if browser:
                 try:
                     if browser.is_connected():
                         await browser.close()
+                except Exception:
+                    pass
+            if pw:
+                try:
+                    await pw.stop()
                 except Exception:
                     pass
 
