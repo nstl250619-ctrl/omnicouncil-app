@@ -208,9 +208,16 @@ class EmbeddedEngine(BrowserEngine):
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             debug("Navigation complete, waiting for user to close browser...")
 
-            # Wait for user to close browser
-            await disconnected.wait()
-            debug("Browser closed by user")
+            # Wait for user to close browser (with timeout)
+            try:
+                await asyncio.wait_for(disconnected.wait(), timeout=300)
+                debug("Browser closed by user")
+            except asyncio.TimeoutError:
+                debug("Login timeout (5 minutes)")
+                return False, "登录超时（5分钟）"
+
+            # Wait for Playwright to flush cookies to disk
+            await asyncio.sleep(2)
 
             # Check if cookies were saved
             if self._has_saved_cookies(ai_id):
@@ -219,6 +226,12 @@ class EmbeddedEngine(BrowserEngine):
                 return True, ""
             else:
                 debug(f"Login not detected for {ai_id} (no cookies)")
+                # Try one more time after a longer wait
+                await asyncio.sleep(3)
+                if self._has_saved_cookies(ai_id):
+                    self._authenticated.add(ai_id)
+                    debug(f"Login successful for {ai_id} (cookies found on retry)")
+                    return True, ""
                 return False, "未检测到登录状态，请确保已完成登录"
 
         except Exception as e:
