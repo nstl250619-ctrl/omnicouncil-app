@@ -241,6 +241,17 @@ class EmbeddedEngine(BrowserEngine):
         cookie_file = profile_dir / "Default" / "Cookies"
         return cookie_file.exists() and cookie_file.stat().st_size > 0
 
+    def _is_on_ai_page(self, ai_id: str, url: str) -> bool:
+        """Check if the URL is on the AI's domain (not just landing page)."""
+        if ai_id == "deepseek":
+            return "chat.deepseek.com" in url and "/sign_in" not in url
+        elif ai_id == "qianwen":
+            # qianwen.aliyun.com, www.qianwen.com, tongyi.aliyun.com
+            is_qianwen_domain = "qianwen" in url or "tongyi.aliyun.com" in url
+            is_not_login = "login" not in url.lower() and "sign" not in url.lower()
+            return is_qianwen_domain and is_not_login
+        return False
+
     def is_authenticated(self, ai_id: str) -> bool:
         return ai_id in self._authenticated
 
