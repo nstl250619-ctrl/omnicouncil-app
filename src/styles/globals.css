@@ -291,6 +291,23 @@ body {
   border-bottom-color: var(--accent);
 }
 
+.tab-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+
+.tab-btn.active .tab-badge {
+  background: rgba(108, 92, 231, 0.2);
+  color: var(--accent);
+}
+
 /* ========================================
    Tab Content
    ======================================== */

@@ -19,9 +19,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const AI_COLORS: Record<string, string> = {
-  deepseek: '#4f8fff',
-  gemini: '#8b5cf6',
-  qianwen: '#f59e0b',
+  deepseek: '#4F8FFF',
+  gemini: '#A78BFA',
+  qianwen: '#F59E0B',
 };
 
 const AI_NAMES: Record<string, string> = {
