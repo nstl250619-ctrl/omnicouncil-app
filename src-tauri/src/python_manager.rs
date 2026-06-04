@@ -42,13 +42,21 @@ impl PythonManager {
         let python_path = self.get_python_path();
         let script_path = self.get_script_path();
 
-        let child = Command::new(&python_path)
-            .arg(&script_path)
+        let mut cmd = Command::new(&python_path);
+        cmd.arg(&script_path)
             .arg("--port")
             .arg(self.port.to_string())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+            .stderr(Stdio::piped());
+
+        // Hide console window on Windows
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+
+        let child = cmd.spawn()
             .map_err(|e| format!("Failed to start Python: {}", e))?;
 
         self.process = Some(child);
