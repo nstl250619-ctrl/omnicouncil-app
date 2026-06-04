@@ -362,6 +362,15 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_json()
             msg_type = data.get("type")
 
+            # Debug: log every WS message to file (absolute path)
+            if os.name == "nt":
+                _debug_dir = os.path.join(os.environ.get("USERPROFILE", "C:\\Users\\green"), ".omnicouncil")
+            else:
+                _debug_dir = os.path.join(str(Path.home()), ".omnicouncil")
+            os.makedirs(_debug_dir, exist_ok=True)
+            with open(os.path.join(_debug_dir, "ws_messages.log"), "a", encoding="utf-8") as f:
+                f.write(f"[{time.strftime('%H:%M:%S')}] type={msg_type} | data={data.get('data', {})}\n")
+
             if msg_type == "submit_query":
                 payload = data.get("data", {})
                 # Validate required fields
@@ -497,9 +506,24 @@ async def handle_reauth(data: dict):
 
     logger.info("Reauth requested for %s", ai_id)
 
+    # Debug: write to file (absolute path)
+    if os.name == "nt":
+        _debug_dir = os.path.join(os.environ.get("USERPROFILE", "C:\\Users\\green"), ".omnicouncil")
+    else:
+        _debug_dir = os.path.join(str(Path.home()), ".omnicouncil")
+    os.makedirs(_debug_dir, exist_ok=True)
+    debug_path = os.path.join(_debug_dir, "reauth_debug.log")
+
+    with open(debug_path, "a", encoding="utf-8") as f:
+        f.write(f"[{time.strftime('%H:%M:%S')}] Reauth requested for {ai_id}\n")
+        f.write(f"  provider_registry: {provider_registry is not None}\n")
+        f.write(f"  browser_engine: {browser_engine is not None}\n")
+
     # Get provider from registry
     provider = provider_registry.get(ai_id) if provider_registry else None
     if not provider:
+        with open(debug_path, "a", encoding="utf-8") as f:
+            f.write(f"  ERROR: provider not found for {ai_id}\n")
         await ws_manager.broadcast({
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": f"未知的 AI: {ai_id}"}
@@ -507,6 +531,8 @@ async def handle_reauth(data: dict):
         return
 
     cfg = provider.config()
+    with open(debug_path, "a") as f:
+        f.write(f"  provider: {cfg.display_name}, login_url: {cfg.login_url}\n")
 
     await ws_manager.broadcast({
         "type": "auth_status",
@@ -514,14 +540,22 @@ async def handle_reauth(data: dict):
     })
 
     if not browser_engine:
+        with open(debug_path, "a") as f:
+            f.write(f"  ERROR: browser_engine is None\n")
         await ws_manager.broadcast({
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": "浏览器引擎未初始化"}
         })
         return
 
+    with open(debug_path, "a") as f:
+        f.write(f"  Calling browser_engine.login()...\n")
+
     # Use the engine's login method with provider's URL
     success, error_msg = await browser_engine.login(ai_id, cfg.login_url)
+
+    with open(debug_path, "a") as f:
+        f.write(f"  login() returned: success={success}, error={error_msg}\n")
 
     if success:
         await ws_manager.broadcast({
