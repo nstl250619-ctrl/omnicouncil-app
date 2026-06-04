@@ -133,6 +133,11 @@ fn main() {
             let app_handle = app.handle().clone();
             python.start_heartbeat(app_handle);
 
+            // Show the main window
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+            }
+
             // ========== System Tray ==========
             let show_item = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
             let settings_item = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
