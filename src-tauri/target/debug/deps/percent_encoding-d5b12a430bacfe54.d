@@ -1,8 +1,0 @@
-/home/greenpool/omnicouncil-app/src-tauri/target/debug/deps/percent_encoding-d5b12a430bacfe54.d: /home/greenpool/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/percent-encoding-2.3.2/src/lib.rs /home/greenpool/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/percent-encoding-2.3.2/src/ascii_set.rs
-
-/home/greenpool/omnicouncil-app/src-tauri/target/debug/deps/libpercent_encoding-d5b12a430bacfe54.rlib: /home/greenpool/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/percent-encoding-2.3.2/src/lib.rs /home/greenpool/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/percent-encoding-2.3.2/src/ascii_set.rs
-
-/home/greenpool/omnicouncil-app/src-tauri/target/debug/deps/libpercent_encoding-d5b12a430bacfe54.rmeta: /home/greenpool/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/percent-encoding-2.3.2/src/lib.rs /home/greenpool/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/percent-encoding-2.3.2/src/ascii_set.rs
-
-/home/greenpool/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/percent-encoding-2.3.2/src/lib.rs:
-/home/greenpool/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/percent-encoding-2.3.2/src/ascii_set.rs:
