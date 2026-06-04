@@ -431,26 +431,91 @@ async def handle_get_status(websocket: WebSocket):
 
 
 async def handle_reauth(data: dict):
-    """Handle re-authentication request."""
+    """Handle re-authentication request by launching a visible browser for login."""
     ai_id = data.get("ai_id")
-    if not ai_id or not browser_engine:
+    if not ai_id:
         return
 
     logger.info("Reauth requested for %s", ai_id)
 
-    async def on_login_complete(ai_id: str, success: bool):
-        if success:
-            await ws_manager.broadcast({
-                "type": "auth_status",
-                "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
-            })
-        else:
-            await ws_manager.broadcast({
-                "type": "auth_status",
-                "data": {"ai_id": ai_id, "status": "failed", "message": "登录失败"}
-            })
+    # Notify frontend: login started
+    await ws_manager.broadcast({
+        "type": "auth_status",
+        "data": {"ai_id": ai_id, "status": "connecting", "message": "正在打开登录窗口..."}
+    })
 
-    await browser_engine.ensure_logged_in(ai_id, on_login_required=lambda aid, status: None)
+    try:
+        # Launch visible browser for login
+        from patchright.async_api import async_playwright
+
+        urls = {
+            "deepseek": "https://chat.deepseek.com",
+            "qianwen": "https://tongyi.aliyun.com/qianwen",
+        }
+        url = urls.get(ai_id, "https://example.com")
+
+        pw = await async_playwright().start()
+        browser = await pw.chromium.launch(headless=False)
+        context = await browser.new_context()
+        page = await context.new_page()
+
+        await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+
+        # Wait for login (poll every 2 seconds, max 5 minutes)
+        max_wait = 300
+        start = time.time()
+
+        while time.time() - start < max_wait:
+            await asyncio.sleep(2)
+            current_url = page.url
+
+            # Check if login is complete
+            logged_in = False
+            if ai_id == "deepseek":
+                logged_in = "/sign_in" not in current_url
+            elif ai_id == "qianwen":
+                logged_in = "login" not in current_url.lower()
+
+            if logged_in:
+                # Save auth state
+                auth_dir = str(Path.home() / ".omnicouncil" / "auth")
+                Path(auth_dir).mkdir(parents=True, exist_ok=True)
+                auth_path = Path(auth_dir) / f"{ai_id}.json"
+                await context.storage_state(path=str(auth_path))
+
+                # Copy cookies to main context if available
+                if browser_engine and hasattr(browser_engine, '_context') and browser_engine._context:
+                    try:
+                        cookies = await context.cookies()
+                        await browser_engine._context.add_cookies(cookies)
+                    except Exception:
+                        pass
+
+                logger.info("Login successful for %s", ai_id)
+                await ws_manager.broadcast({
+                    "type": "auth_status",
+                    "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
+                })
+
+                await browser.close()
+                await pw.stop()
+                return
+
+        # Timeout
+        logger.warning("Login timeout for %s", ai_id)
+        await ws_manager.broadcast({
+            "type": "auth_status",
+            "data": {"ai_id": ai_id, "status": "failed", "message": "登录超时"}
+        })
+        await browser.close()
+        await pw.stop()
+
+    except Exception as e:
+        logger.exception("Login failed for %s", ai_id)
+        await ws_manager.broadcast({
+            "type": "auth_status",
+            "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {str(e)}"}
+        })
 
 
 # ========== Entry Point ==========

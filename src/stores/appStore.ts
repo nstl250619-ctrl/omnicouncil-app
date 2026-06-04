@@ -18,6 +18,9 @@ export interface AppState {
   // Connection
   connectionStatus: ConnectionStatus;
 
+  // Auth status per AI
+  authStatus: Record<string, { status: string; message: string }>;
+
   // Current task
   currentTaskId: string | null;
   query: string;
@@ -58,6 +61,7 @@ const createInitialResponse = (): AIResponseState => ({
 export const useAppStore = create<AppState>((set, get) => ({
   // Initial values
   connectionStatus: 'disconnected',
+  authStatus: {},
   currentTaskId: null,
   query: '',
   selectedAIs: ['deepseek', 'qianwen'],
@@ -198,6 +202,20 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       case 'task_cancelled':
         set({ currentTaskId: null });
+        break;
+
+      case 'auth_status':
+        // Login status update from backend
+        console.log('[Auth]', data.ai_id, data.status, data.message);
+        set((state) => ({
+          authStatus: {
+            ...state.authStatus,
+            [data.ai_id as string]: {
+              status: data.status as string,
+              message: data.message as string,
+            },
+          },
+        }));
         break;
 
       case 'pong':

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useAppStore } from '../stores/appStore';
 
 type EngineMode = 'cdp' | 'embedded';
 type WizardStep = 'mode' | 'connect' | 'complete';
@@ -12,18 +13,18 @@ interface AIItem {
   aiId: string;
   aiName: string;
   color: string;
-  connected: boolean;
-  connecting: boolean;
 }
+
+const AI_LIST: AIItem[] = [
+  { aiId: 'deepseek', aiName: 'DeepSeek', color: '#4F8FFF' },
+  { aiId: 'qianwen', aiName: '千问', color: '#F59E0B' },
+];
 
 export function SetupWizard({ onComplete }: SetupWizardProps) {
   const { send } = useWebSocket();
   const [step, setStep] = useState<WizardStep>('mode');
   const [selectedMode, setSelectedMode] = useState<EngineMode | null>(null);
-  const [ais, setAis] = useState<AIItem[]>([
-    { aiId: 'deepseek', aiName: 'DeepSeek', color: '#4F8FFF', connected: false, connecting: false },
-    { aiId: 'qianwen', aiName: '千问', color: '#F59E0B', connected: false, connecting: false },
-  ]);
+  const authStatus = useAppStore((s) => s.authStatus);
 
   const handleModeSelect = (mode: EngineMode) => {
     setSelectedMode(mode);
@@ -31,11 +32,20 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   };
 
   const handleConnect = (aiId: string) => {
-    setAis((prev) => prev.map((ai) => ai.aiId === aiId ? { ...ai, connecting: true } : ai));
     send('reauth', { ai_id: aiId });
   };
 
-  const connectedCount = ais.filter((ai) => ai.connected).length;
+  const getStatus = (aiId: string) => {
+    const s = authStatus[aiId];
+    if (!s) return { connected: false, connecting: false, message: '' };
+    return {
+      connected: s.status === 'authenticated',
+      connecting: s.status === 'connecting',
+      message: s.message,
+    };
+  };
+
+  const connectedCount = AI_LIST.filter((ai) => getStatus(ai.aiId).connected).length;
 
   // Step 1: Mode Selection
   if (step === 'mode') {
@@ -107,48 +117,51 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             </div>
 
             <div className="login-cards">
-              {ais.map((ai) => (
-                <div key={ai.aiId} className="login-card">
-                  <div className="login-header">
-                    <span className="login-ai-name" style={{ color: ai.color }}>
-                      {ai.aiName}
-                    </span>
-                    <span className={`login-status ${ai.connected ? 'status-connected' : ''}`}>
-                      {ai.connected ? '✅ 已连接' : ai.connecting ? '⏳ 连接中...' : '未连接'}
-                    </span>
-                  </div>
-
-                  {!ai.connected && !ai.connecting && (
-                    <div style={{ padding: '16px', display: 'flex', gap: '8px' }}>
-                      <button className="setup-next" onClick={() => handleConnect(ai.aiId)}>
-                        连接 {ai.aiName}
-                      </button>
-                      <button className="setup-skip" onClick={() => setStep('complete')}>
-                        跳过
-                      </button>
+              {AI_LIST.map((ai) => {
+                const status = getStatus(ai.aiId);
+                return (
+                  <div key={ai.aiId} className="login-card">
+                    <div className="login-header">
+                      <span className="login-ai-name" style={{ color: ai.color }}>
+                        {ai.aiName}
+                      </span>
+                      <span className={`login-status ${status.connected ? 'status-connected' : ''}`}>
+                        {status.connected ? '✅ 已连接' : status.connecting ? '⏳ 连接中...' : '未连接'}
+                      </span>
                     </div>
-                  )}
 
-                  {ai.connecting && (
-                    <div style={{ padding: '24px', textAlign: 'center' }}>
-                      <div className="pulse-loader" style={{ justifyContent: 'center', marginBottom: '12px' }}>
-                        <div className="pulse-dot" style={{ background: ai.color }} />
-                        <div className="pulse-dot" style={{ background: ai.color }} />
-                        <div className="pulse-dot" style={{ background: ai.color }} />
+                    {!status.connected && !status.connecting && (
+                      <div style={{ padding: '16px', display: 'flex', gap: '8px' }}>
+                        <button className="setup-next" onClick={() => handleConnect(ai.aiId)}>
+                          连接 {ai.aiName}
+                        </button>
+                        <button className="setup-skip" onClick={() => setStep('complete')}>
+                          跳过
+                        </button>
                       </div>
-                      <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
-                        请在弹出的浏览器窗口中完成登录...
-                      </p>
-                    </div>
-                  )}
+                    )}
 
-                  {ai.connected && (
-                    <div style={{ padding: '16px', textAlign: 'center', color: 'var(--success)', fontSize: '13px' }}>
-                      ✅ 登录成功，可以使用
-                    </div>
-                  )}
-                </div>
-              ))}
+                    {status.connecting && (
+                      <div style={{ padding: '24px', textAlign: 'center' }}>
+                        <div className="pulse-loader" style={{ justifyContent: 'center', marginBottom: '12px' }}>
+                          <div className="pulse-dot" style={{ background: ai.color }} />
+                          <div className="pulse-dot" style={{ background: ai.color }} />
+                          <div className="pulse-dot" style={{ background: ai.color }} />
+                        </div>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                          {status.message || '请在弹出的浏览器窗口中完成登录...'}
+                        </p>
+                      </div>
+                    )}
+
+                    {status.connected && (
+                      <div style={{ padding: '16px', textAlign: 'center', color: 'var(--success)', fontSize: '13px' }}>
+                        ✅ 登录成功，可以使用
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="setup-privacy">
