@@ -7,7 +7,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
-use tauri::{Manager, State};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager, State,
+};
 use serde::{Deserialize, Serialize};
 
 struct AppState {
@@ -102,7 +106,6 @@ fn launch_chrome_debug() -> Result<String, String> {
 
 #[tauri::command]
 fn check_chrome_connection() -> Result<bool, String> {
-    // Try to connect to Chrome's debug port
     match std::net::TcpStream::connect_timeout(
         &"127.0.0.1:9222".parse().unwrap(),
         std::time::Duration::from_secs(2),
@@ -130,13 +133,74 @@ fn main() {
             let app_handle = app.handle().clone();
             python.start_heartbeat(app_handle);
 
+            // ========== System Tray ==========
+            let show_item = MenuItem::with_id(app, "show", "显示主窗口", true, None::<&str>)?;
+            let settings_item = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
+            let restart_item = MenuItem::with_id(app, "restart", "重启服务", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+
+            let menu = Menu::with_items(
+                app,
+                &[&show_item, &settings_item, &restart_item, &quit_item],
+            )?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .tooltip("OmniCouncil")
+                .on_menu_event(move |app, event| {
+                    match event.id.as_ref() {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        "settings" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                                let _ = window.emit("open-settings", ());
+                            }
+                        }
+                        "restart" => {
+                            let state = app.state::<AppState>();
+                            let mut python = state.python.lock().unwrap();
+                            let _ = python.restart();
+                        }
+                        "quit" => {
+                            let state = app.state::<AppState>();
+                            let mut python = state.python.lock().unwrap();
+                            python.cleanup();
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                let state = window.state::<AppState>();
-                let mut python = state.python.lock().unwrap();
-                python.cleanup();
+            // Hide to tray instead of closing
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Prevent default close, hide to tray instead
+                api.prevent_close();
+                let _ = window.hide();
             }
         })
         .invoke_handler(tauri::generate_handler![

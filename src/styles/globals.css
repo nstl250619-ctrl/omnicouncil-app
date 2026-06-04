@@ -291,6 +291,15 @@ body {
   border-bottom-color: var(--accent);
 }
 
+.tab-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tab-btn.disabled:hover {
+  color: var(--text-secondary);
+}
+
 .tab-badge {
   display: inline-block;
   margin-left: 6px;

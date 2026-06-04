@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 # Add backend to path for imports
@@ -266,6 +266,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     event_bus.on("collector:context:ready", on_context_ready)
     event_bus.on("collector:progress", on_progress)
 
+    # Register auto-save handler for session history
+    async def _on_context_ready(context, **kwargs):
+        asyncio.create_task(on_all_completed(context.task_id))
+    event_bus.on("collector:context:ready", _on_context_ready)
+
     # Install global exception handler
     exception_handler = GlobalExceptionHandler(ws_manager)
     exception_handler.install()
@@ -516,6 +521,72 @@ async def handle_reauth(data: dict):
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {str(e)}"}
         })
+
+
+# ========== Session History ==========
+
+from storage.local import LocalStorage
+
+storage = LocalStorage()
+
+
+@app.get("/api/sessions")
+async def list_sessions(limit: int = 50):
+    """List recent sessions."""
+    return {"sessions": storage.list_sessions(limit=limit)}
+
+
+@app.get("/api/sessions/{session_id}")
+async def get_session(session_id: str):
+    """Get a specific session."""
+    session = storage.load_session(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    return session
+
+
+@app.delete("/api/sessions/{session_id}")
+async def delete_session(session_id: str):
+    """Delete a session."""
+    if storage.delete_session(session_id):
+        return {"status": "deleted"}
+    raise HTTPException(404, "Session not found")
+
+
+@app.delete("/api/sessions")
+async def clear_sessions():
+    """Clear all sessions."""
+    count = storage.clear_all()
+    return {"status": "cleared", "count": count}
+
+
+# Auto-save session when task completes
+async def on_all_completed(task_id: str, **kwargs):
+    """Save completed task to history."""
+    if collector:
+        ctx = collector.get_round_context(task_id)
+        if ctx:
+            session_data = {
+                "task_id": ctx.task_id,
+                "query": ctx.query,
+                "ai_ids": [r.ai_id for r in ctx.results],
+                "completed_at": time.time(),
+                "summary": {
+                    "total_ais": ctx.summary.total_ais,
+                    "success_count": ctx.summary.success_count,
+                    "failure_count": ctx.summary.failure_count,
+                },
+                "results": [
+                    {
+                        "ai_id": r.ai_id,
+                        "content": r.raw_text[:500],  # Truncate for storage
+                        "word_count": r.normalized.word_count,
+                        "duration": r.duration,
+                    }
+                    for r in ctx.results
+                ],
+            }
+            storage.save_session(session_data)
 
 
 # ========== Entry Point ==========
