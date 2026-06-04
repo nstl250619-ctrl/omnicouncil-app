@@ -28,7 +28,7 @@ from engine.layers.layer3_collector.result_collector import ResultCollector
 from engine.layers.layer4_comparison.comparison_engine import ComparisonEngine
 from browser.engine import EngineMode, AuthStatus
 from browser.factory import create_engine
-from adapters.registry import AIRegistry, create_default_registry
+from providers.registry import ProviderRegistry, create_default_registry
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("omnicouncil")
@@ -79,7 +79,7 @@ scheduler: SchedulerCenter | None = None
 collector: ResultCollector | None = None
 comparison_engine: ComparisonEngine | None = None
 browser_engine = None
-ai_registry: AIRegistry | None = None
+provider_registry: ProviderRegistry | None = None
 
 
 # ========== Event Handlers (Engine → WebSocket) ==========
@@ -224,7 +224,7 @@ class GlobalExceptionHandler:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    global event_bus, ai_manager, scheduler, collector, comparison_engine, browser_engine, ai_registry
+    global event_bus, ai_manager, scheduler, collector, comparison_engine, browser_engine, provider_registry
 
     logger.info("Starting OmniCouncil backend...")
 
@@ -234,9 +234,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize config
     config = load_config()
 
-    # Initialize AI Registry (auto-discovers adapters)
-    ai_registry = create_default_registry()
-    logger.info("AI Registry: %s", [a.config().ai_id for a in ai_registry.get_all()])
+    # Initialize Provider Registry (auto-discovers providers)
+    provider_registry = create_default_registry()
+    logger.info("Providers: %s", [p.config().provider_id for p in provider_registry.get_all()])
 
     # Initialize Browser Engine
     browser_mode = "embedded"
@@ -444,19 +444,13 @@ async def handle_get_status(websocket: WebSocket):
 
 
 async def handle_get_ais(websocket: WebSocket):
-    """Get list of all registered AI adapters."""
-    if not ai_registry:
-        await ws_manager.send_personal(websocket, {
-            "type": "ai_list",
-            "data": []
-        })
+    """Get list of all registered providers."""
+    if not provider_registry:
+        await ws_manager.send_personal(websocket, {"type": "ai_list", "data": []})
         return
 
-    ais = ai_registry.get_configs()
-    await ws_manager.send_personal(websocket, {
-        "type": "ai_list",
-        "data": ais
-    })
+    ais = provider_registry.get_configs()
+    await ws_manager.send_personal(websocket, {"type": "ai_list", "data": ais})
 
 
 async def handle_reauth(data: dict):
@@ -467,8 +461,16 @@ async def handle_reauth(data: dict):
 
     logger.info("Reauth requested for %s", ai_id)
 
-    # Get adapter from registry
-    adapter = ai_registry.get(ai_id) if ai_registry else None
+    # Get provider from registry
+    provider = provider_registry.get(ai_id) if provider_registry else None
+    if not provider:
+        await ws_manager.broadcast({
+            "type": "auth_status",
+            "data": {"ai_id": ai_id, "status": "failed", "message": f"未知的 AI: {ai_id}"}
+        })
+        return
+
+    cfg = provider.config()
     if not adapter:
         await ws_manager.broadcast({
             "type": "auth_status",
@@ -476,7 +478,6 @@ async def handle_reauth(data: dict):
         })
         return
 
-    cfg = adapter.config()
     await ws_manager.broadcast({
         "type": "auth_status",
         "data": {"ai_id": ai_id, "status": "connecting", "message": f"正在打开 {cfg.display_name} 登录窗口..."}
@@ -489,7 +490,7 @@ async def handle_reauth(data: dict):
         })
         return
 
-    # Use the engine's login method with adapter's URL
+    # Use the engine's login method with provider's URL
     success, error_msg = await browser_engine.login(ai_id, cfg.login_url)
 
     if success:
