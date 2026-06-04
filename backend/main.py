@@ -501,8 +501,12 @@ async def handle_reauth(data: dict):
 
             if logged_in:
                 # Save auth state
-                auth_path = Path(auth_dir) / f"{ai_id}.json"
-                await browser.storage_state(path=str(auth_path))
+                try:
+                    auth_path = Path(auth_dir) / f"{ai_id}.json"
+                    await browser.storage_state(path=str(auth_path))
+                    logger.info("Saved auth state for %s", ai_id)
+                except Exception as e:
+                    logger.warning("Failed to save auth state: %s", e)
 
                 # Copy cookies to main browser context if available
                 if browser_engine and hasattr(browser_engine, '_context') and browser_engine._context:
@@ -519,8 +523,15 @@ async def handle_reauth(data: dict):
                     "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
                 })
 
-                await browser.close()
-                await pw.stop()
+                # Safely close browser
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
+                try:
+                    await pw.stop()
+                except Exception:
+                    pass
                 return
 
         # Timeout
@@ -529,8 +540,14 @@ async def handle_reauth(data: dict):
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": "登录超时"}
         })
-        await browser.close()
-        await pw.stop()
+        try:
+            await browser.close()
+        except Exception:
+            pass
+        try:
+            await pw.stop()
+        except Exception:
+            pass
 
     except Exception as e:
         logger.exception("Login failed for %s", ai_id)
