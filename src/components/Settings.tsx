@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useConfigStore, EngineMode } from '../stores/configStore';
 
-type SettingsTab = 'ai' | 'engine' | 'about';
+type SettingsTab = 'ai' | 'engine' | 'reset' | 'about';
 
 export function Settings({ onClose }: { onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('ai');
@@ -35,6 +35,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
               onClick={() => setActiveTab('about')}
             >
               ℹ️ 关于
+            </button>
+            <button
+              className={`settings-nav ${activeTab === 'reset' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reset')}
+            >
+              🔄 向导与重置
             </button>
           </div>
 
@@ -114,6 +120,48 @@ export function Settings({ onClose }: { onClose: () => void }) {
                   <p><strong>版本:</strong> 0.1.0</p>
                   <p><strong>描述:</strong> 多AI共识决策操作系统</p>
                   <p><strong>架构:</strong> Tauri + Python + Playwright</p>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'reset' && (
+              <div className="settings-section">
+                <h2>🔄 向导与重置</h2>
+                <div className="setting-group">
+                  <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '13px' }}>
+                    如果首次设置出现问题，可以重新运行初始向导或清除所有本地状态。
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <button
+                      className="btn-add-ai"
+                      style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+                      onClick={() => {
+                        useConfigStore.getState().completeSetup('embedded');
+                        window.location.reload();
+                      }}
+                    >
+                      🔄 重新运行初始向导
+                    </button>
+                    <button
+                      style={{
+                        padding: '10px 16px',
+                        background: 'transparent',
+                        border: '1px solid var(--error)',
+                        borderRadius: '8px',
+                        color: 'var(--error)',
+                        cursor: 'pointer',
+                        width: '100%',
+                      }}
+                      onClick={() => {
+                        if (confirm('确定要清除所有本地状态吗？这将删除所有登录信息和配置。')) {
+                          useConfigStore.getState().completeSetup('embedded');
+                          window.location.reload();
+                        }
+                      }}
+                    >
+                      🗑️ 清除所有本地状态（恢复出厂）
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
