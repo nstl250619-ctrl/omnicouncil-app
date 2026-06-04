@@ -345,3 +345,575 @@ body {
   padding-left: 20px;
   margin: 8px 0;
 }
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.settings-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.settings-btn:hover {
+  background: #1a1a1a;
+}
+
+/* Setup Wizard */
+.setup-wizard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: #0f0f0f;
+  padding: 40px;
+}
+
+.setup-container {
+  max-width: 800px;
+  width: 100%;
+}
+
+.setup-step {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.setup-header {
+  text-align: center;
+}
+
+.setup-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+}
+
+.setup-header h1 {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.setup-subtitle {
+  color: #888;
+  line-height: 1.6;
+}
+
+/* Mode Cards */
+.mode-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.mode-card {
+  background: #1a1a1a;
+  border: 2px solid #2a2a2a;
+  border-radius: 16px;
+  padding: 28px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.mode-card:hover {
+  border-color: #6366f1;
+  background: #1f1f1f;
+}
+
+.mode-icon {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+}
+
+.mode-card h2 {
+  font-size: 1.3rem;
+  margin-bottom: 12px;
+}
+
+.mode-divider {
+  height: 1px;
+  background: #2a2a2a;
+  margin: 16px 0;
+}
+
+.mode-card p {
+  color: #888;
+  margin-bottom: 16px;
+}
+
+.mode-features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feature-good {
+  color: #22c55e;
+}
+
+.feature-warn {
+  color: #f59e0b;
+}
+
+.mode-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.mode-badge.recommended {
+  background: #6366f1;
+  color: white;
+}
+
+.setup-hint {
+  text-align: center;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.setup-skip {
+  background: none;
+  border: 1px solid #333;
+  color: #888;
+  padding: 10px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  align-self: center;
+}
+
+.setup-skip:hover {
+  border-color: #555;
+  color: #e0e0e0;
+}
+
+/* CDP Setup */
+.setup-instructions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #1a1a1a;
+  padding: 24px;
+  border-radius: 12px;
+}
+
+.instruction-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.step-number {
+  width: 28px;
+  height: 28px;
+  background: #6366f1;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.launch-chrome-btn {
+  padding: 14px 28px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin: 8px 0;
+}
+
+.launch-chrome-btn:hover {
+  opacity: 0.9;
+}
+
+.launch-chrome-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.launch-chrome-btn.connected {
+  background: #22c55e;
+}
+
+.command-hint {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.command-hint code {
+  background: #2a2a2a;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.setup-status {
+  text-align: center;
+  padding: 16px;
+}
+
+.status-success {
+  color: #22c55e;
+}
+
+.status-waiting {
+  color: #888;
+}
+
+.status-detail {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.setup-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.setup-back {
+  padding: 10px 20px;
+  background: none;
+  border: 1px solid #333;
+  color: #888;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.setup-next {
+  padding: 10px 20px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.setup-next:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Login Cards */
+.login-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-card {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.login-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.login-ai-name {
+  font-weight: 600;
+}
+
+.login-status {
+  color: #888;
+  font-size: 0.85rem;
+}
+
+.login-iframe {
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-placeholder {
+  color: #666;
+  text-align: center;
+}
+
+.setup-privacy {
+  text-align: center;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+/* Settings */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.settings-window {
+  background: #1a1a1a;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.settings-header h1 {
+  font-size: 1.3rem;
+}
+
+.settings-close {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.settings-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.settings-sidebar {
+  width: 180px;
+  border-right: 1px solid #2a2a2a;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-nav {
+  background: none;
+  border: none;
+  color: #888;
+  padding: 10px 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settings-nav:hover {
+  color: #e0e0e0;
+  background: #222;
+}
+
+.settings-nav.active {
+  color: #6366f1;
+  background: #1f1f1f;
+}
+
+.settings-content {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.settings-section h2 {
+  margin-bottom: 20px;
+}
+
+.ai-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ai-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #222;
+  padding: 14px 16px;
+  border-radius: 10px;
+}
+
+.ai-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-name {
+  font-weight: 600;
+}
+
+.ai-status {
+  font-size: 0.8rem;
+}
+
+.status-connected {
+  color: #22c55e;
+}
+
+.status-disconnected {
+  color: #888;
+}
+
+.status-expired {
+  color: #f59e0b;
+}
+
+.ai-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #333;
+  border-radius: 24px;
+  transition: 0.2s;
+}
+
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.toggle input:checked + .toggle-slider {
+  background: #6366f1;
+}
+
+.toggle input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+.btn-small {
+  padding: 6px 12px;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #e0e0e0;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.btn-add-ai {
+  padding: 10px 16px;
+  background: none;
+  border: 1px dashed #444;
+  border-radius: 8px;
+  color: #888;
+  cursor: pointer;
+  width: 100%;
+}
+
+.btn-add-ai:hover {
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
+.setting-group {
+  margin-bottom: 20px;
+}
+
+.setting-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #222;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.mode-option input[type="radio"] {
+  accent-color: #6366f1;
+}
+
+.about-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.about-info p {
+  color: #888;
+}

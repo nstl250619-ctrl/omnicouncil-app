@@ -3,6 +3,9 @@
 mod python_manager;
 
 use python_manager::PythonManager;
+use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Mutex;
 use tauri::{Manager, State};
 use serde::{Deserialize, Serialize};
@@ -17,6 +20,8 @@ struct HealthStatus {
     python_running: bool,
     port: u16,
 }
+
+// ========== Health ==========
 
 #[tauri::command]
 fn get_health(state: State<AppState>) -> HealthStatus {
@@ -34,6 +39,80 @@ fn restart_python(state: State<AppState>) -> Result<String, String> {
     python.restart().map_err(|e| e.to_string())?;
     Ok("Python restarted".to_string())
 }
+
+// ========== Config Management ==========
+
+fn get_config_dir() -> PathBuf {
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    home.join(".omnicouncil")
+}
+
+fn get_config_path() -> PathBuf {
+    get_config_dir().join("config.json")
+}
+
+#[tauri::command]
+fn read_config() -> Result<String, String> {
+    let path = get_config_path();
+    if path.exists() {
+        fs::read_to_string(&path).map_err(|e| format!("Failed to read config: {}", e))
+    } else {
+        Ok("{}".to_string())
+    }
+}
+
+#[tauri::command]
+fn write_config(content: String) -> Result<(), String> {
+    let dir = get_config_dir();
+    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create config dir: {}", e))?;
+    let path = get_config_path();
+    fs::write(&path, content).map_err(|e| format!("Failed to write config: {}", e))
+}
+
+// ========== Chrome Launch ==========
+
+#[tauri::command]
+fn launch_chrome_debug() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("cmd")
+            .args(["/C", "start", "chrome", "--remote-debugging-port=9222"])
+            .spawn()
+            .map_err(|e| format!("Failed to launch Chrome: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .args(["-a", "Google Chrome", "--args", "--remote-debugging-port=9222"])
+            .spawn()
+            .map_err(|e| format!("Failed to launch Chrome: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("google-chrome")
+            .arg("--remote-debugging-port=9222")
+            .spawn()
+            .map_err(|e| format!("Failed to launch Chrome: {}", e))?;
+    }
+
+    Ok("Chrome launched with debug port 9222".to_string())
+}
+
+#[tauri::command]
+fn check_chrome_connection() -> Result<bool, String> {
+    // Try to connect to Chrome's debug port
+    match std::net::TcpStream::connect_timeout(
+        &"127.0.0.1:9222".parse().unwrap(),
+        std::time::Duration::from_secs(2),
+    ) {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
+// ========== Main ==========
 
 fn main() {
     tauri::Builder::default()
@@ -55,13 +134,19 @@ fn main() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                // Cleanup Python on window close
                 let state = window.state::<AppState>();
                 let mut python = state.python.lock().unwrap();
                 python.cleanup();
             }
         })
-        .invoke_handler(tauri::generate_handler![get_health, restart_python])
+        .invoke_handler(tauri::generate_handler![
+            get_health,
+            restart_python,
+            read_config,
+            write_config,
+            launch_chrome_debug,
+            check_chrome_connection
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
