@@ -140,14 +140,10 @@ impl PythonManager {
         // In development, use system Python
         if cfg!(debug_assertions) {
             if cfg!(target_os = "windows") {
-                // Use pythonw.exe (no console window) instead of python.exe
+                // Use python.exe (can launch visible browsers for login)
                 let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
-                let pythonw_path = format!("{}\\Programs\\Python\\Python314\\pythonw.exe", local_app_data);
                 let python_path = format!("{}\\Programs\\Python\\Python314\\python.exe", local_app_data);
-                // Prefer pythonw.exe (no console), fall back to python.exe
-                if std::path::Path::new(&pythonw_path).exists() {
-                    pythonw_path
-                } else if std::path::Path::new(&python_path).exists() {
+                if std::path::Path::new(&python_path).exists() {
                     python_path
                 } else {
                     "python".to_string()
