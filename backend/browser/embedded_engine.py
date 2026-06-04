@@ -194,11 +194,15 @@ class EmbeddedEngine(BrowserEngine):
         if status == AuthStatus.AUTHENTICATED:
             return True
 
-        if status in (AuthStatus.NOT_LOGGED_IN, AuthStatus.EXPIRED):
-            if on_login_required:
-                # Launch a visible browser for manual login
-                await self._launch_login_window(ai_id, on_login_required)
-            return False
+        if status in (AuthStatus.NOT_LOGGED_IN, AuthStatus.EXPIRED, AuthStatus.UNKNOWN):
+            # Always launch login window when needed
+            login_result = {"success": False}
+
+            async def on_complete(aid: str, success: bool):
+                login_result["success"] = success
+
+            await self._launch_login_window(ai_id, on_complete)
+            return login_result["success"]
 
         return True
 
@@ -256,12 +260,22 @@ class EmbeddedEngine(BrowserEngine):
         """Check auth status on a specific page."""
         url = page.url
 
+        # Check URL for login indicators
         if ai_id == "deepseek":
             if "/sign_in" in url:
                 return AuthStatus.NOT_LOGGED_IN
         elif ai_id == "qianwen":
             if "login" in url.lower():
                 return AuthStatus.NOT_LOGGED_IN
+
+        # Also check page content for login elements
+        try:
+            body = await page.locator("body").inner_text(timeout=3000)
+            body_lower = body[:300].lower()
+            if "登录" in body[:300] or "sign in" in body_lower or "log in" in body_lower:
+                return AuthStatus.NOT_LOGGED_IN
+        except Exception:
+            pass
 
         return AuthStatus.AUTHENTICATED
 

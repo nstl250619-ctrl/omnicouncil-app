@@ -86,6 +86,28 @@ class BrowserAIAdapter(AIAdapter):
         except AILoginRequiredError:
             self._status = AIStatus.LOGIN_REQUIRED
             self._consecutive_failures += 1
+
+            # Try to trigger login window
+            try:
+                logger.info("%s: triggering login window...", self.ai_name)
+                login_success = await self._engine.ensure_logged_in(self.ai_id)
+                if login_success:
+                    # Retry the request after login
+                    logger.info("%s: login successful, retrying...", self.ai_name)
+                    self._status = AIStatus.BUSY
+                    result = await self._send_async(prompt, timeout_ms)
+                    duration = time.time() - start_time
+                    self._status = AIStatus.READY
+                    self._consecutive_failures = 0
+                    return AIResponse(
+                        success=True, ai_id=self.ai_id, task_id=task_id,
+                        content=result, model=self.ai_id,
+                        timestamp=time.time(), duration=duration,
+                        word_count=self._count_words(result),
+                    )
+            except Exception as login_err:
+                logger.error("%s: login failed: %s", self.ai_name, login_err)
+
             return AIResponse(
                 success=False, ai_id=self.ai_id, task_id=task_id,
                 content="", error_code="LOGIN_REQUIRED",

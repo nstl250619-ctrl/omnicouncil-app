@@ -131,7 +131,11 @@ impl PythonManager {
         // In production, this points to the embedded Python
         // In development, use system Python
         if cfg!(debug_assertions) {
-            "python3".to_string()
+            if cfg!(target_os = "windows") {
+                "python".to_string()
+            } else {
+                "python3".to_string()
+            }
         } else {
             // Production: embedded Python in the app bundle
             let exe_dir = std::env::current_exe()
@@ -150,13 +154,15 @@ impl PythonManager {
 
     fn get_script_path(&self) -> String {
         if cfg!(debug_assertions) {
-            // Development: use the backend directory
-            std::env::current_dir()
+            // Development: use the backend directory relative to the project root
+            // The exe is in src-tauri/target/debug/, so go up 3 levels to reach project root
+            let exe_dir = std::env::current_exe()
                 .unwrap()
-                .join("backend")
-                .join("main.py")
-                .to_string_lossy()
-                .to_string()
+                .parent()
+                .unwrap()
+                .to_path_buf();
+            let project_root = exe_dir.parent().unwrap().parent().unwrap().parent().unwrap();
+            project_root.join("backend").join("main.py").to_string_lossy().to_string()
         } else {
             // Production: bundled with the app
             let exe_dir = std::env::current_exe()

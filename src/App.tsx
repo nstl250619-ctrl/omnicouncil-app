@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useAppStore } from './stores/appStore';
 import { useConfigStore } from './stores/configStore';
-import { Header } from './components/Header';
+import Titlebar from './components/Titlebar';
 import { QueryInput } from './components/QueryInput';
 import { TabBar } from './components/TabBar';
 import { ResponsesTab } from './components/ResponsesTab';
 import { ComparisonTab } from './components/ComparisonTab';
 import { ConsensusTab } from './components/ConsensusTab';
 import { ConflictTab } from './components/ConflictTab';
+import { HistoryView } from './components/HistoryView';
 import { StatusBar } from './components/StatusBar';
 import { SetupWizard } from './components/SetupWizard';
 import { Settings } from './components/Settings';
@@ -18,15 +19,20 @@ function App() {
   useWebSocket();
 
   const activeTab = useAppStore((s) => s.activeTab);
+  const connectionStatus = useAppStore((s) => s.connectionStatus);
+  const responses = useAppStore((s) => s.responses);
   const { isFirstLaunch, setupCompleted, completeSetup, loadConfig } = useConfigStore();
   const [showSettings, setShowSettings] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [error, setError] = useState<{ message: string; recoverable: boolean; suggestion?: string } | null>(null);
 
+  // Compute titlebar status
+  const isRunning = Object.values(responses).some((r) => r.status === 'waiting' || r.status === 'streaming');
+  const titlebarStatus = isRunning ? '分析中...' : connectionStatus === 'connected' ? '就绪' : '未连接';
+
   // Listen for errors from WebSocket
   useEffect(() => {
     const unsubscribe = useAppStore.subscribe((state, prevState) => {
-      // Check for new errors in the store
       const responses = state.responses;
       const prevResponses = prevState.responses;
       for (const aiId of Object.keys(responses)) {
@@ -56,7 +62,7 @@ function App() {
 
   return (
     <div className="app">
-      <Header onSettingsClick={() => setShowSettings(true)} />
+      <Titlebar statusText={titlebarStatus} />
       <QueryInput />
       <TabBar />
       <div className="tab-content">
@@ -64,6 +70,7 @@ function App() {
         {activeTab === 'comparison' && <ComparisonTab />}
         {activeTab === 'consensus' && <ConsensusTab />}
         {activeTab === 'conflict' && <ConflictTab />}
+        {activeTab === 'history' && <HistoryView />}
       </div>
       <StatusBar />
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
