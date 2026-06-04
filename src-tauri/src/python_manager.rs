@@ -140,7 +140,14 @@ impl PythonManager {
         // In development, use system Python
         if cfg!(debug_assertions) {
             if cfg!(target_os = "windows") {
-                "python".to_string()
+                // Use full path to avoid Microsoft Store stub
+                let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
+                let full_path = format!("{}\\Programs\\Python\\Python314\\python.exe", local_app_data);
+                if std::path::Path::new(&full_path).exists() {
+                    full_path
+                } else {
+                    "python".to_string()
+                }
             } else {
                 "python3".to_string()
             }
