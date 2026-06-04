@@ -28,6 +28,7 @@ from engine.layers.layer3_collector.result_collector import ResultCollector
 from engine.layers.layer4_comparison.comparison_engine import ComparisonEngine
 from browser.engine import EngineMode, AuthStatus
 from browser.factory import create_engine
+from adapters.registry import AIRegistry, create_default_registry
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("omnicouncil")
@@ -78,6 +79,7 @@ scheduler: SchedulerCenter | None = None
 collector: ResultCollector | None = None
 comparison_engine: ComparisonEngine | None = None
 browser_engine = None
+ai_registry: AIRegistry | None = None
 
 
 # ========== Event Handlers (Engine → WebSocket) ==========
@@ -222,7 +224,7 @@ class GlobalExceptionHandler:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    global event_bus, ai_manager, scheduler, collector, comparison_engine, browser_engine
+    global event_bus, ai_manager, scheduler, collector, comparison_engine, browser_engine, ai_registry
 
     logger.info("Starting OmniCouncil backend...")
 
@@ -232,8 +234,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize config
     config = load_config()
 
+    # Initialize AI Registry (auto-discovers adapters)
+    ai_registry = create_default_registry()
+    logger.info("AI Registry: %s", [a.config().ai_id for a in ai_registry.get_all()])
+
     # Initialize Browser Engine
-    browser_mode = "embedded"  # Default, will be overridden by config
+    browser_mode = "embedded"
     browser_engine = create_engine(browser_mode, headless=True)
     connected = await browser_engine.connect()
     logger.info("Browser engine: %s (connected=%s)", browser_mode, connected)
@@ -338,6 +344,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 await handle_cancel_task(data.get("data", {}))
             elif msg_type == "get_status":
                 await handle_get_status(websocket)
+            elif msg_type == "get_ais":
+                await handle_get_ais(websocket)
             elif msg_type == "reauth":
                 await handle_reauth(data.get("data", {}))
             elif msg_type == "ping":
@@ -435,6 +443,22 @@ async def handle_get_status(websocket: WebSocket):
     })
 
 
+async def handle_get_ais(websocket: WebSocket):
+    """Get list of all registered AI adapters."""
+    if not ai_registry:
+        await ws_manager.send_personal(websocket, {
+            "type": "ai_list",
+            "data": []
+        })
+        return
+
+    ais = ai_registry.get_configs()
+    await ws_manager.send_personal(websocket, {
+        "type": "ai_list",
+        "data": ais
+    })
+
+
 async def handle_reauth(data: dict):
     """Handle re-authentication via the engine's login method."""
     ai_id = data.get("ai_id")
@@ -443,22 +467,20 @@ async def handle_reauth(data: dict):
 
     logger.info("Reauth requested for %s", ai_id)
 
-    await ws_manager.broadcast({
-        "type": "auth_status",
-        "data": {"ai_id": ai_id, "status": "connecting", "message": "正在打开登录窗口..."}
-    })
-
-    urls = {
-        "deepseek": "https://chat.deepseek.com",
-        "qianwen": "https://tongyi.aliyun.com/qianwen",
-    }
-    url = urls.get(ai_id)
-    if not url:
+    # Get adapter from registry
+    adapter = ai_registry.get(ai_id) if ai_registry else None
+    if not adapter:
         await ws_manager.broadcast({
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": f"未知的 AI: {ai_id}"}
         })
         return
+
+    cfg = adapter.config()
+    await ws_manager.broadcast({
+        "type": "auth_status",
+        "data": {"ai_id": ai_id, "status": "connecting", "message": f"正在打开 {cfg.display_name} 登录窗口..."}
+    })
 
     if not browser_engine:
         await ws_manager.broadcast({
@@ -467,8 +489,8 @@ async def handle_reauth(data: dict):
         })
         return
 
-    # Use the engine's login method (shared profile directory)
-    success = await browser_engine.login(ai_id, url)
+    # Use the engine's login method with adapter's URL
+    success = await browser_engine.login(ai_id, cfg.login_url)
 
     if success:
         await ws_manager.broadcast({
