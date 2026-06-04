@@ -459,10 +459,18 @@ async def handle_reauth(data: dict):
         }
         url = urls.get(ai_id, "https://example.com")
 
+        # Use user_data_dir to persist login session
+        auth_dir = str(Path.home() / ".omnicouncil" / "auth")
+        Path(auth_dir).mkdir(parents=True, exist_ok=True)
+        profile_dir = str(Path(auth_dir) / f"{ai_id}_profile")
+
         pw = await async_playwright().start()
-        browser = await pw.chromium.launch(headless=False)
-        context = await browser.new_context()
-        page = await context.new_page()
+        browser = await pw.chromium.launch_persistent_context(
+            profile_dir,
+            headless=False,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        page = browser.pages[0] if browser.pages else await browser.new_page()
 
         await page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
@@ -474,27 +482,36 @@ async def handle_reauth(data: dict):
             await asyncio.sleep(2)
             current_url = page.url
 
-            # Check if login is complete
+            # Check if login is complete by checking for chat interface elements
             logged_in = False
+
             if ai_id == "deepseek":
                 logged_in = "/sign_in" not in current_url
             elif ai_id == "qianwen":
-                logged_in = "login" not in current_url.lower()
+                # Check for chat input or URL change
+                try:
+                    # Check if we're on a chat page
+                    if "/chat" in current_url or "qianwen.com" in current_url:
+                        # Look for textarea or contenteditable (chat input)
+                        textarea = page.locator("textarea")
+                        if await textarea.count() > 0 and await textarea.first.is_visible(timeout=2000):
+                            logged_in = True
+                except Exception:
+                    pass
 
             if logged_in:
                 # Save auth state
-                auth_dir = str(Path.home() / ".omnicouncil" / "auth")
-                Path(auth_dir).mkdir(parents=True, exist_ok=True)
                 auth_path = Path(auth_dir) / f"{ai_id}.json"
-                await context.storage_state(path=str(auth_path))
+                await browser.storage_state(path=str(auth_path))
 
-                # Copy cookies to main context if available
+                # Copy cookies to main browser context if available
                 if browser_engine and hasattr(browser_engine, '_context') and browser_engine._context:
                     try:
-                        cookies = await context.cookies()
+                        cookies = await browser.cookies()
                         await browser_engine._context.add_cookies(cookies)
-                    except Exception:
-                        pass
+                        logger.info("Copied %d cookies to main context for %s", len(cookies), ai_id)
+                    except Exception as e:
+                        logger.warning("Failed to copy cookies: %s", e)
 
                 logger.info("Login successful for %s", ai_id)
                 await ws_manager.broadcast({

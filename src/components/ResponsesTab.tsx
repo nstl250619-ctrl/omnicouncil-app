@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAppStore, AIResponseState } from '../stores/appStore';
+import { useWebSocket } from '../hooks/useWebSocket';
 import ReactMarkdown from 'react-markdown';
 
 const STATUS_ICONS: Record<string, string> = {
@@ -30,7 +31,7 @@ const AI_NAMES: Record<string, string> = {
   qianwen: '千问',
 };
 
-function ResponseCard({ aiId, response }: { aiId: string; response: AIResponseState }) {
+function ResponseCard({ aiId, response, onRetry }: { aiId: string; response: AIResponseState; onRetry?: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const color = AI_COLORS[aiId] || '#6366f1';
   const name = AI_NAMES[aiId] || aiId.toUpperCase();
@@ -93,7 +94,7 @@ function ResponseCard({ aiId, response }: { aiId: string; response: AIResponseSt
           <div className="card-error">
             <div className="error-icon">❌</div>
             <div className="error-message">{response.error}</div>
-            <button className="retry-btn" style={{ borderColor: color }}>
+            <button className="retry-btn" style={{ borderColor: color }} onClick={onRetry}>
               重试
             </button>
           </div>
@@ -112,6 +113,7 @@ function ResponseCard({ aiId, response }: { aiId: string; response: AIResponseSt
 export function ResponsesTab() {
   const responses = useAppStore((s) => s.responses);
   const aiIds = Object.keys(responses);
+  const { send } = useWebSocket();
 
   if (aiIds.length === 0) {
     return (
@@ -126,7 +128,12 @@ export function ResponsesTab() {
   return (
     <div className="responses-grid">
       {aiIds.map((aiId) => (
-        <ResponseCard key={aiId} aiId={aiId} response={responses[aiId]} />
+        <ResponseCard
+          key={aiId}
+          aiId={aiId}
+          response={responses[aiId]}
+          onRetry={() => send('reauth', { ai_id: aiId })}
+        />
       ))}
     </div>
   );
