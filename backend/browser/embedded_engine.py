@@ -177,15 +177,17 @@ class EmbeddedEngine(BrowserEngine):
         profile_dir = self._get_profile_dir(ai_id)
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
 
-        from patchright.async_api import async_playwright
+        # Reuse the main Playwright instance to avoid conflicts
+        if not self._playwright:
+            from patchright.async_api import async_playwright
+            self._playwright = await async_playwright().start()
 
-        pw = await async_playwright().start()
         browser = None
         is_alive = True
 
         try:
             # Launch visible browser with the SAME profile
-            browser = await pw.chromium.launch_persistent_context(
+            browser = await self._playwright.chromium.launch_persistent_context(
                 profile_dir,
                 headless=False,
                 args=["--disable-blink-features=AutomationControlled"],
@@ -235,10 +237,7 @@ class EmbeddedEngine(BrowserEngine):
                         await browser.close()
                 except Exception:
                     pass
-            try:
-                await pw.stop()
-            except Exception:
-                pass
+            # Don't stop the main Playwright instance (reused)
 
     async def _check_login(self, ai_id: str, page: Any) -> bool:
         """Check if login is complete."""
