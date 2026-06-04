@@ -21,8 +21,8 @@ from shared.event_bus import EventBus
 from shared.config import load_config
 from shared.types import TaskMode, QueryRequest
 from engine.layers.layer1_ai_access.manager import AIAccessManager
-from engine.layers.layer1_ai_access.adapters.deepseek import DeepSeekAdapter
-from engine.layers.layer1_ai_access.adapters.qianwen import QianwenAdapter
+from engine.layers.layer1_ai_access.adapters.deepseek_browser import DeepSeekBrowserAdapter
+from engine.layers.layer1_ai_access.adapters.qianwen_browser import QianwenBrowserAdapter
 from engine.layers.layer2_scheduler.scheduler_center import SchedulerCenter
 from engine.layers.layer3_collector.result_collector import ResultCollector
 from engine.layers.layer4_comparison.comparison_engine import ComparisonEngine
@@ -238,10 +238,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     connected = await browser_engine.connect()
     logger.info("Browser engine: %s (connected=%s)", browser_mode, connected)
 
-    # Initialize Layer 1: AI Access
+    # Initialize Layer 1: AI Access with BrowserEngine
     ai_manager = AIAccessManager(event_bus=event_bus)
-    deepseek = DeepSeekAdapter()
-    qianwen = QianwenAdapter()
+    deepseek = DeepSeekBrowserAdapter(browser_engine)
+    qianwen = QianwenBrowserAdapter(browser_engine)
     ai_manager.register_adapter(deepseek)
     ai_manager.register_adapter(qianwen)
     await ai_manager.initialize()
