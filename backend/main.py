@@ -490,7 +490,7 @@ async def handle_reauth(data: dict):
         return
 
     # Use the engine's login method with adapter's URL
-    success = await browser_engine.login(ai_id, cfg.login_url)
+    success, error_msg = await browser_engine.login(ai_id, cfg.login_url)
 
     if success:
         await ws_manager.broadcast({
@@ -500,7 +500,7 @@ async def handle_reauth(data: dict):
     else:
         await ws_manager.broadcast({
             "type": "auth_status",
-            "data": {"ai_id": ai_id, "status": "failed", "message": "登录失败或超时"}
+            "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {error_msg}"}
         })
 
 

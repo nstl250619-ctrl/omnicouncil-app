@@ -166,19 +166,22 @@ class EmbeddedEngine(BrowserEngine):
 
         return AuthStatus.AUTHENTICATED
 
-    async def login(self, ai_id: str, url: str) -> bool:
+    async def login(self, ai_id: str, url: str) -> tuple[bool, str]:
         """Launch visible browser for manual login.
 
+        Returns (success: bool, error_message: str).
         Uses the SAME profile directory as the main engine,
         so cookies/localStorage are automatically shared.
         """
-        logger.info("Embedded: Launching login window for %s", ai_id)
+        logger.info("Embedded: Launching login window for %s at %s", ai_id, url)
 
         profile_dir = self._get_profile_dir(ai_id)
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
+        logger.info("Embedded: Profile dir: %s", profile_dir)
 
         # Reuse the main Playwright instance to avoid conflicts
         if not self._playwright:
+            logger.info("Embedded: Creating new Playwright instance")
             from patchright.async_api import async_playwright
             self._playwright = await async_playwright().start()
 
@@ -186,12 +189,13 @@ class EmbeddedEngine(BrowserEngine):
         is_alive = True
 
         try:
-            # Launch visible browser with the SAME profile
+            logger.info("Embedded: Launching persistent context (headless=False)")
             browser = await self._playwright.chromium.launch_persistent_context(
                 profile_dir,
                 headless=False,
                 args=["--disable-blink-features=AutomationControlled"],
             )
+            logger.info("Embedded: Browser launched successfully")
 
             page = browser.pages[0] if browser.pages else await browser.new_page()
 
@@ -202,7 +206,9 @@ class EmbeddedEngine(BrowserEngine):
 
             page.on("close", on_close)
 
+            logger.info("Embedded: Navigating to %s", url)
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            logger.info("Embedded: Navigation complete, waiting for login...")
 
             # Wait for login
             max_wait = 300
@@ -213,23 +219,24 @@ class EmbeddedEngine(BrowserEngine):
 
                 if not is_alive:
                     logger.info("User closed browser for %s", ai_id)
-                    return False
+                    return False, "用户关闭了浏览器窗口"
 
                 try:
                     logged_in = await self._check_login(ai_id, page)
                     if logged_in:
                         self._authenticated.add(ai_id)
                         logger.info("Login successful for %s", ai_id)
-                        return True
+                        return True, ""
                 except Exception:
                     pass
 
             logger.warning("Login timeout for %s", ai_id)
-            return False
+            return False, "登录超时（5分钟）"
 
         except Exception as e:
-            logger.exception("Login error for %s: %s", ai_id, e)
-            return False
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            logger.exception("Login error for %s: %s", ai_id, error_msg)
+            return False, error_msg
         finally:
             if browser:
                 try:
@@ -237,7 +244,6 @@ class EmbeddedEngine(BrowserEngine):
                         await browser.close()
                 except Exception:
                     pass
-            # Don't stop the main Playwright instance (reused)
 
     async def _check_login(self, ai_id: str, page: Any) -> bool:
         """Check if login is complete."""
