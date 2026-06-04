@@ -1,14 +1,16 @@
 """EmbeddedEngine — per-AI persistent context browser engine.
 
-Core design: each AI has its own persistent profile directory.
-Login and work share the SAME profile, so cookies auto-persist.
+Core design:
+- Each AI has its own persistent profile directory
+- Login and work share the SAME profile (cookies auto-persist)
+- Login success = cookies exist in profile directory
+- No cookie copying, no complex URL detection
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -19,21 +21,14 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddedEngine(BrowserEngine):
-    """Browser engine with per-AI persistent contexts.
-
-    Key design:
-    - Each AI gets its own profile directory ({ai_id}_profile)
-    - Login browser and work browser share the SAME profile
-    - Login success = cookies exist in profile directory
-    - No cookie copying needed
-    """
+    """Browser engine with per-AI persistent contexts."""
 
     def __init__(self, auth_dir: str | None = None, headless: bool = True):
         self._auth_dir = auth_dir or str(Path.home() / ".omnicouncil" / "auth")
         self._headless = headless
         self._playwright = None
-        self._contexts: dict[str, Any] = {}  # ai_id -> persistent context
-        self._pages: dict[str, Any] = {}     # ai_id -> page
+        self._contexts: dict[str, Any] = {}
+        self._pages: dict[str, Any] = {}
         self._connected = False
         self._authenticated: set[str] = set()
 
@@ -42,18 +37,16 @@ class EmbeddedEngine(BrowserEngine):
         return EngineMode.EMBEDDED
 
     def _get_profile_dir(self, ai_id: str) -> str:
-        """Get the persistent profile directory for an AI."""
         return str(Path(self._auth_dir) / f"{ai_id}_profile")
 
     async def connect(self) -> bool:
-        """Launch Playwright (no browser yet — created per-AI on demand)."""
         try:
             from patchright.async_api import async_playwright
             self._playwright = await async_playwright().start()
             self._connected = True
             logger.info("Embedded: Playwright connected")
 
-            # Check which AIs have saved sessions
+            # Check for saved sessions
             for ai_id in ["deepseek", "qianwen", "gemini", "chatgpt", "claude"]:
                 if self._has_saved_cookies(ai_id):
                     self._authenticated.add(ai_id)
@@ -66,39 +59,33 @@ class EmbeddedEngine(BrowserEngine):
             return False
 
     async def disconnect(self) -> None:
-        """Close all contexts and cleanup."""
         for ai_id in list(self._pages.keys()):
             await self.close_page(ai_id)
-
-        for ai_id, ctx in list(self._contexts.items()):
+        for ctx in self._contexts.values():
             try:
                 await ctx.close()
             except Exception:
                 pass
         self._contexts.clear()
-
         if self._playwright:
             try:
                 await self._playwright.stop()
             except Exception:
                 pass
             self._playwright = None
-
         self._connected = False
-        logger.info("Embedded: Disconnected")
 
     async def is_connected(self) -> bool:
         return self._connected and self._playwright is not None
 
     async def _get_context(self, ai_id: str) -> Any:
-        """Get or create a persistent context for the given AI."""
+        """Get or create persistent context for this AI."""
         if ai_id in self._contexts:
             return self._contexts[ai_id]
 
         profile_dir = self._get_profile_dir(ai_id)
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
 
-        logger.info("Creating persistent context for %s at %s", ai_id, profile_dir)
         ctx = await self._playwright.chromium.launch_persistent_context(
             profile_dir,
             headless=self._headless,
@@ -108,11 +95,9 @@ class EmbeddedEngine(BrowserEngine):
         return ctx
 
     async def get_page(self, ai_id: str, url: str) -> Any:
-        """Get or create a page for the given AI using its persistent context."""
         if not self._connected:
             raise RuntimeError("Browser not connected")
 
-        # Return existing page if alive
         if ai_id in self._pages:
             page = self._pages[ai_id]
             try:
@@ -121,10 +106,8 @@ class EmbeddedEngine(BrowserEngine):
             except Exception:
                 del self._pages[ai_id]
 
-        # Create page from AI's persistent context
         ctx = await self._get_context(ai_id)
         page = await ctx.new_page()
-
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             await page.wait_for_timeout(2000)
@@ -132,7 +115,6 @@ class EmbeddedEngine(BrowserEngine):
             logger.warning("Failed to navigate to %s: %s", url, e)
 
         self._pages[ai_id] = page
-        logger.info("Created page for %s at %s", ai_id, url)
         return page
 
     async def close_page(self, ai_id: str) -> None:
@@ -149,12 +131,10 @@ class EmbeddedEngine(BrowserEngine):
         page = self._pages[ai_id]
         try:
             url = page.url
-            if ai_id == "deepseek":
-                if "/sign_in" in url:
-                    return AuthStatus.NOT_LOGGED_IN
-            elif ai_id == "qianwen":
-                if "login" in url.lower():
-                    return AuthStatus.NOT_LOGGED_IN
+            if ai_id == "deepseek" and "/sign_in" in url:
+                return AuthStatus.NOT_LOGGED_IN
+            if ai_id == "qianwen" and "login" in url.lower():
+                return AuthStatus.NOT_LOGGED_IN
         except Exception:
             pass
         return AuthStatus.AUTHENTICATED
@@ -162,24 +142,15 @@ class EmbeddedEngine(BrowserEngine):
     async def login(self, ai_id: str, url: str) -> tuple[bool, str]:
         """Launch visible browser for manual login.
 
-        Uses the SAME profile directory as the work engine.
-        User logs in, closes browser → cookies auto-persisted.
+        Uses the SAME profile as the work engine.
+        User closes browser → cookies auto-persisted → login detected.
         """
-        debug_log = os.path.join(self._auth_dir, "login_debug.log")
-        os.makedirs(os.path.dirname(debug_log), exist_ok=True)
-
-        def debug(msg: str):
-            logger.info(msg)
-            with open(debug_log, "a", encoding="utf-8") as f:
-                f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
-
-        debug(f"=== Login for {ai_id} at {url} ===")
+        logger.info("Login: %s at %s", ai_id, url)
 
         profile_dir = self._get_profile_dir(ai_id)
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
-        debug(f"Profile: {profile_dir}")
 
-        # Close existing context for this AI (if any)
+        # Close existing context for this AI
         if ai_id in self._contexts:
             try:
                 await self._contexts[ai_id].close()
@@ -190,13 +161,11 @@ class EmbeddedEngine(BrowserEngine):
 
         browser = None
         try:
-            debug("Launching visible browser with persistent context...")
             browser = await self._playwright.chromium.launch_persistent_context(
                 profile_dir,
                 headless=False,
                 args=["--disable-blink-features=AutomationControlled"],
             )
-            debug("Browser launched")
 
             page = browser.pages[0] if browser.pages else await browser.new_page()
 
@@ -204,42 +173,36 @@ class EmbeddedEngine(BrowserEngine):
             disconnected = asyncio.Event()
             browser.on("disconnected", lambda _: disconnected.set())
 
-            debug(f"Navigating to {url}...")
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            debug("Navigation complete, waiting for user to close browser...")
+            logger.info("Login: waiting for user to close browser...")
 
-            # Wait for user to close browser (with timeout)
+            # Wait for user to close browser (5 min timeout)
             try:
                 await asyncio.wait_for(disconnected.wait(), timeout=300)
-                debug("Browser closed by user")
             except asyncio.TimeoutError:
-                debug("Login timeout (5 minutes)")
                 return False, "登录超时（5分钟）"
 
-            # Wait for Playwright to flush cookies to disk
+            # Wait for cookies to flush
             await asyncio.sleep(2)
 
             # Check if cookies were saved
             if self._has_saved_cookies(ai_id):
                 self._authenticated.add(ai_id)
-                debug(f"Login successful for {ai_id} (cookies found)")
+                logger.info("Login successful for %s", ai_id)
                 return True, ""
-            else:
-                debug(f"Login not detected for {ai_id} (no cookies)")
-                # Try one more time after a longer wait
-                await asyncio.sleep(3)
-                if self._has_saved_cookies(ai_id):
-                    self._authenticated.add(ai_id)
-                    debug(f"Login successful for {ai_id} (cookies found on retry)")
-                    return True, ""
-                return False, "未检测到登录状态，请确保已完成登录"
+
+            # Retry check
+            await asyncio.sleep(3)
+            if self._has_saved_cookies(ai_id):
+                self._authenticated.add(ai_id)
+                logger.info("Login successful for %s (retry)", ai_id)
+                return True, ""
+
+            return False, "未检测到登录状态"
 
         except Exception as e:
-            import traceback
-            error_msg = f"{type(e).__name__}: {str(e)}"
-            debug(f"ERROR: {error_msg}")
-            debug(f"TRACEBACK:\n{traceback.format_exc()}")
-            return False, error_msg
+            logger.exception("Login error for %s", ai_id)
+            return False, str(e)
         finally:
             if browser:
                 try:
@@ -249,20 +212,21 @@ class EmbeddedEngine(BrowserEngine):
                     pass
 
     def _has_saved_cookies(self, ai_id: str) -> bool:
-        """Check if there are saved cookies for this AI."""
         profile_dir = Path(self._get_profile_dir(ai_id))
         cookie_file = profile_dir / "Default" / "Cookies"
         return cookie_file.exists() and cookie_file.stat().st_size > 0
 
     def _is_on_ai_page(self, ai_id: str, url: str) -> bool:
-        """Check if the URL is on the AI's domain (not just landing page)."""
         if ai_id == "deepseek":
             return "chat.deepseek.com" in url and "/sign_in" not in url
         elif ai_id == "qianwen":
-            # qianwen.aliyun.com, www.qianwen.com, tongyi.aliyun.com
-            is_qianwen_domain = "qianwen" in url or "tongyi.aliyun.com" in url
-            is_not_login = "login" not in url.lower() and "sign" not in url.lower()
-            return is_qianwen_domain and is_not_login
+            is_domain = "qianwen" in url or "tongyi.aliyun.com" in url
+            is_landing = url in (
+                "https://qianwen.aliyun.com/", "https://www.qianwen.com/",
+                "https://tongyi.aliyun.com/", "https://tongyi.aliyun.com",
+            )
+            is_login = "login" in url.lower() or "sign" in url.lower()
+            return is_domain and not is_landing and not is_login
         return False
 
     def is_authenticated(self, ai_id: str) -> bool:
@@ -283,18 +247,14 @@ class EmbeddedEngine(BrowserEngine):
                     is_logged_in=False, auth_status=AuthStatus.UNKNOWN,
                 ))
         return EngineStatus(
-            mode=EngineMode.EMBEDDED,
-            connected=self._connected,
-            browser_version="persistent",
-            active_pages=pages,
+            mode=EngineMode.EMBEDDED, connected=self._connected,
+            browser_version="persistent", active_pages=pages,
         )
 
     async def save_auth_state(self, ai_id: str) -> bool:
-        """No-op: persistent context auto-saves."""
         return True
 
     async def load_auth_state(self, ai_id: str) -> bool:
-        """No-op: persistent context auto-loads."""
         return True
 
     async def ensure_logged_in(self, ai_id: str, on_login_required: Callable | None = None) -> bool:
