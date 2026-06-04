@@ -73,9 +73,13 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       // In Tauri, read config from filesystem
       const configStr = await invoke<string>('read_config');
       const config = JSON.parse(configStr);
+
+      // Force wizard to show if no AI is authenticated
+      const hasAuthenticatedAI = config.ais?.some((ai: { status: string }) => ai.status === 'authenticated') ?? false;
+
       set({
         isFirstLaunch: config.isFirstLaunch ?? true,
-        setupCompleted: config.setupCompleted ?? false,
+        setupCompleted: hasAuthenticatedAI ? (config.setupCompleted ?? false) : false,
         engineMode: config.engineMode ?? 'embedded',
         ais: config.ais ?? DEFAULT_AIS,
       });
