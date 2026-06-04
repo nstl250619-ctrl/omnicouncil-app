@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAppStore, AIResponseState } from '../stores/appStore';
 import ReactMarkdown from 'react-markdown';
 
@@ -23,46 +24,87 @@ const AI_COLORS: Record<string, string> = {
   qianwen: '#f59e0b',
 };
 
+const AI_NAMES: Record<string, string> = {
+  deepseek: 'DeepSeek',
+  gemini: 'Gemini',
+  qianwen: '千问',
+};
+
 function ResponseCard({ aiId, response }: { aiId: string; response: AIResponseState }) {
+  const [expanded, setExpanded] = useState(false);
   const color = AI_COLORS[aiId] || '#6366f1';
+  const name = AI_NAMES[aiId] || aiId.toUpperCase();
+  const contentLength = response.content.length;
+  const shouldTruncate = contentLength > 500 && !expanded;
 
   return (
     <div className="response-card" style={{ borderTopColor: color }}>
       <div className="card-header">
-        <span className="card-ai-name" style={{ color }}>
-          🤖 {aiId.toUpperCase()}
-        </span>
-        <span className={`card-status status-${response.status}`}>
-          {STATUS_ICONS[response.status]} {STATUS_LABELS[response.status]}
-          {response.wordCount && ` · ${response.wordCount}字`}
-          {response.elapsedMs && ` · ${(response.elapsedMs / 1000).toFixed(1)}秒`}
-        </span>
+        <div className="card-header-left">
+          <span className="card-ai-name" style={{ color }}>
+            🤖 {name}
+          </span>
+          <span className={`card-status status-${response.status}`}>
+            {STATUS_ICONS[response.status]} {STATUS_LABELS[response.status]}
+          </span>
+        </div>
+        <div className="card-header-right">
+          {response.wordCount && <span className="card-meta">{response.wordCount}字</span>}
+          {response.elapsedMs && <span className="card-meta">{(response.elapsedMs / 1000).toFixed(1)}秒</span>}
+        </div>
       </div>
-      <div className="card-content">
+
+      <div className={`card-content ${shouldTruncate ? 'truncated' : ''}`}>
+        {response.status === 'idle' && (
+          <div className="card-placeholder">
+            <span className="placeholder-text">等待发送...</span>
+          </div>
+        )}
+
         {response.status === 'waiting' && (
           <div className="card-placeholder">
-            <div className="spinner" />
-            <span>等待AI回复...</span>
+            <div className="pulse-loader">
+              <div className="pulse-dot" style={{ background: color }} />
+              <div className="pulse-dot" style={{ background: color }} />
+              <div className="pulse-dot" style={{ background: color }} />
+            </div>
+            <span className="placeholder-text">等待AI回复...</span>
           </div>
         )}
+
         {response.status === 'streaming' && (
           <div className="card-streaming">
-            <ReactMarkdown>{response.content || '思考中...'}</ReactMarkdown>
-            <span className="cursor">|</span>
+            <div className="markdown-body">
+              <ReactMarkdown>{response.content || '思考中...'}</ReactMarkdown>
+            </div>
+            <span className="cursor" style={{ color }}>▊</span>
           </div>
         )}
+
         {response.status === 'completed' && (
           <div className="card-completed">
-            <ReactMarkdown>{response.content}</ReactMarkdown>
+            <div className="markdown-body">
+              <ReactMarkdown>{response.content}</ReactMarkdown>
+            </div>
           </div>
         )}
+
         {response.status === 'error' && (
           <div className="card-error">
-            <span>❌ {response.error}</span>
-            <button className="retry-btn">重试</button>
+            <div className="error-icon">❌</div>
+            <div className="error-message">{response.error}</div>
+            <button className="retry-btn" style={{ borderColor: color }}>
+              重试
+            </button>
           </div>
         )}
       </div>
+
+      {contentLength > 500 && (
+        <button className="card-expand-btn" onClick={() => setExpanded(!expanded)}>
+          {expanded ? '收起 ▲' : '展开全文 ▼'}
+        </button>
+      )}
     </div>
   );
 }
@@ -76,7 +118,7 @@ export function ResponsesTab() {
       <div className="empty-state">
         <div className="empty-icon">🤖</div>
         <div className="empty-title">等待提问</div>
-        <div className="empty-desc">输入问题并选择AI模型，开始分析</div>
+        <div className="empty-desc">输入问题并选择AI模型，点击"开始分析"</div>
       </div>
     );
   }
