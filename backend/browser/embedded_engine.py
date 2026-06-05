@@ -167,7 +167,8 @@ class EmbeddedEngine(BrowserEngine):
             browser = await self._playwright.chromium.launch_persistent_context(
                 profile_dir,
                 headless=False,
-                args=["--disable-blink-features=AutomationControlled"],
+                no_viewport=True,  # Gemini: prevents small window
+                args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
             )
             _debug("Browser launched")
 
@@ -181,7 +182,7 @@ class EmbeddedEngine(BrowserEngine):
             page.on("close", on_page_close)
 
             _debug(f"Navigating to {url}...")
-            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            await page.goto(url, wait_until="commit", timeout=45000)  # Gemini: commit is faster
             _debug("Navigation complete, waiting for user to close browser...")
 
             # Wait for user to close browser (page close event or timeout)
@@ -192,7 +193,16 @@ class EmbeddedEngine(BrowserEngine):
                 _debug("Login timeout (5 minutes)")
                 return False, "登录超时（5分钟）"
 
-            _debug("Browser closed, checking cookies...")
+            _debug("Browser closed, saving auth state...")
+
+            # Gemini: explicitly save storage state (cookies + localStorage)
+            auth_json = Path(self._auth_dir) / f"{ai_id}.json"
+            try:
+                if browser.is_connected():
+                    await browser.storage_state(path=str(auth_json))
+                    _debug(f"Storage state saved to {auth_json}")
+            except Exception as e:
+                _debug(f"Failed to save storage state: {e}")
 
             # Wait for cookies to flush to disk
             await asyncio.sleep(2)
