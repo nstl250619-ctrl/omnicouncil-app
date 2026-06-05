@@ -75,37 +75,32 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       const config = JSON.parse(configStr);
 
       // Wait for backend to be ready (retry up to 10 times)
-      let hasAuthenticatedAI = false;
+      let sessions: Record<string, boolean> = {};
       for (let attempt = 0; attempt < 10; attempt++) {
         try {
           const sessionRes = await fetch('http://localhost:8765/api/sessions/status');
           if (sessionRes.ok) {
             const sessionData = await sessionRes.json();
-            hasAuthenticatedAI = sessionData.authenticated?.length > 0;
-            // Update AI statuses from backend
-            if (config.ais && sessionData.sessions) {
-              config.ais = config.ais.map((ai: { aiId: string; [key: string]: unknown }) => ({
-                ...ai,
-                status: sessionData.sessions[ai.aiId] ? 'authenticated' : 'disconnected',
-              }));
-            }
-            break; // Success
+            sessions = sessionData.sessions || {};
+            break;
           }
         } catch {
-          // Backend not ready yet, wait and retry
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
 
-      if (!hasAuthenticatedAI) {
-        hasAuthenticatedAI = config.ais?.some((ai: { status: string }) => ai.status === 'authenticated') ?? false;
-      }
+      // Update AI statuses based on saved sessions
+      const ais = (config.ais ?? DEFAULT_AIS).map((ai: { aiId: string; [key: string]: unknown }) => ({
+        ...ai,
+        status: sessions[ai.aiId] ? 'authenticated' : 'disconnected',
+      }));
 
       set({
         isFirstLaunch: config.isFirstLaunch ?? true,
-        setupCompleted: hasAuthenticatedAI ? true : (config.setupCompleted ?? false),
+        // Only set setupCompleted if config explicitly says so
+        setupCompleted: config.setupCompleted ?? false,
         engineMode: config.engineMode ?? 'embedded',
-        ais: config.ais ?? DEFAULT_AIS,
+        ais,
       });
     } catch {
       // Config doesn't exist yet, use defaults
