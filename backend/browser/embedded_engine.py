@@ -267,11 +267,17 @@ class EmbeddedEngine(BrowserEngine):
 
     def _has_saved_cookies(self, ai_id: str) -> bool:
         profile_dir = Path(self._get_profile_dir(ai_id))
-        cookie_file = profile_dir / "Default" / "Cookies"
-        exists = cookie_file.exists()
-        size = cookie_file.stat().st_size if exists else 0
-        _debug(f"Cookie file: {cookie_file} exists={exists} size={size}")
-        return exists and size > 0
+        # Check both old and new Chromium cookie locations
+        cookie_paths = [
+            profile_dir / "Default" / "Cookies",
+            profile_dir / "Default" / "Network" / "Cookies",
+        ]
+        for cookie_file in cookie_paths:
+            if cookie_file.exists() and cookie_file.stat().st_size > 0:
+                _debug(f"Cookie file found: {cookie_file}")
+                return True
+        _debug(f"No cookies found for {ai_id}")
+        return False
 
     async def _quick_login_check(self, ai_id: str, page: Any) -> bool:
         """Quick check if user is already logged in (from previous session)."""
