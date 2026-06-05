@@ -89,10 +89,11 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
         }
       }
 
-      // Update AI statuses based on saved sessions
-      const ais = (config.ais ?? DEFAULT_AIS).map((ai: { aiId: string; [key: string]: unknown }) => ({
+      // Update AI statuses: config is source of truth, backend sessions supplement
+      const ais = (config.ais ?? DEFAULT_AIS).map((ai: { aiId: string; status?: string; [key: string]: unknown }) => ({
         ...ai,
-        status: sessions[ai.aiId] ? 'authenticated' : 'disconnected',
+        // If config says authenticated, keep it; otherwise check backend sessions
+        status: ai.status === 'authenticated' ? 'authenticated' : (sessions[ai.aiId] ? 'authenticated' : 'disconnected'),
       }));
 
       set({
