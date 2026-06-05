@@ -173,42 +173,22 @@ class EmbeddedEngine(BrowserEngine):
 
             page = browser.pages[0] if browser.pages else await browser.new_page()
 
+            # Use page close event to detect user closing the window
+            page_closed = asyncio.Event()
+            def on_page_close(*args):
+                _debug("Page close event fired")
+                page_closed.set()
+            page.on("close", on_page_close)
+
             _debug(f"Navigating to {url}...")
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             _debug("Navigation complete, waiting for user to close browser...")
 
-            # Poll for browser close
-            max_wait = 300
-            start = time.time()
-            browser_closed = False
-
-            while time.time() - start < max_wait:
-                await asyncio.sleep(2)
-                elapsed = int(time.time() - start)
-                try:
-                    # Try multiple ways to detect browser close
-                    is_connected = browser.is_connected()
-                    if not is_connected:
-                        browser_closed = True
-                        _debug(f"Browser disconnected (is_connected=False) after {elapsed}s")
-                        break
-
-                    # Also check if pages are still accessible
-                    pages = browser.pages
-                    if len(pages) == 0:
-                        browser_closed = True
-                        _debug(f"Browser has no pages after {elapsed}s")
-                        break
-
-                except Exception as e:
-                    browser_closed = True
-                    _debug(f"Browser check exception after {elapsed}s: {e}")
-                    break
-
-                if elapsed % 15 == 0:
-                    _debug(f"Still waiting... ({elapsed}s)")
-
-            if not browser_closed:
+            # Wait for user to close browser (page close event or timeout)
+            try:
+                await asyncio.wait_for(page_closed.wait(), timeout=300)
+                _debug("Page closed by user")
+            except asyncio.TimeoutError:
                 _debug("Login timeout (5 minutes)")
                 return False, "登录超时（5分钟）"
 
@@ -248,9 +228,8 @@ class EmbeddedEngine(BrowserEngine):
         finally:
             if browser:
                 try:
-                    if browser.is_connected():
-                        await browser.close()
-                        _debug("Browser closed in finally")
+                    await browser.close()
+                    _debug("Browser closed in finally")
                 except Exception as e:
                     _debug(f"Error closing browser: {e}")
 
