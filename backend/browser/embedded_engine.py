@@ -169,17 +169,28 @@ class EmbeddedEngine(BrowserEngine):
 
             page = browser.pages[0] if browser.pages else await browser.new_page()
 
-            # Track browser close
-            disconnected = asyncio.Event()
-            browser.on("disconnected", lambda _: disconnected.set())
-
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             logger.info("Login: waiting for user to close browser...")
 
-            # Wait for user to close browser (5 min timeout)
-            try:
-                await asyncio.wait_for(disconnected.wait(), timeout=300)
-            except asyncio.TimeoutError:
+            # Poll for browser close (more reliable than disconnected event)
+            max_wait = 300  # 5 minutes
+            start = time.time()
+            browser_closed = False
+
+            while time.time() - start < max_wait:
+                await asyncio.sleep(2)
+                try:
+                    # Check if browser is still connected
+                    if not browser.is_connected():
+                        browser_closed = True
+                        logger.info("Login: browser disconnected")
+                        break
+                except Exception:
+                    browser_closed = True
+                    logger.info("Login: browser check failed, assuming closed")
+                    break
+
+            if not browser_closed:
                 return False, "登录超时（5分钟）"
 
             # Wait for cookies to flush
