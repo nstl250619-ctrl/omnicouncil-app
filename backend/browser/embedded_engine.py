@@ -182,8 +182,31 @@ class EmbeddedEngine(BrowserEngine):
             page.on("close", on_page_close)
 
             _debug(f"Navigating to {url}...")
-            await page.goto(url, wait_until="commit", timeout=45000)  # Gemini: commit is faster
-            _debug("Navigation complete, waiting for user to close browser...")
+            await page.goto(url, wait_until="commit", timeout=45000)
+            _debug("Navigation complete, checking if already logged in...")
+
+            # Wait for page to stabilize
+            await asyncio.sleep(3)
+
+            # Check if already logged in (from previous session)
+            already_logged_in = await self._quick_login_check(ai_id, page)
+            if already_logged_in:
+                _debug("Already logged in! Saving state...")
+                auth_json = Path(self._auth_dir) / f"{ai_id}.json"
+                try:
+                    await browser.storage_state(path=str(auth_json))
+                    _debug(f"Storage state saved to {auth_json}")
+                except Exception as e:
+                    _debug(f"Failed to save storage state: {e}")
+                self._authenticated.add(ai_id)
+                _debug(f"LOGIN SUCCESSFUL for {ai_id} (already logged in)")
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
+                return True, ""
+
+            _debug("Not logged in, waiting for user to close browser...")
 
             # Wait for user to close browser (page close event or timeout)
             try:
@@ -249,6 +272,32 @@ class EmbeddedEngine(BrowserEngine):
         size = cookie_file.stat().st_size if exists else 0
         _debug(f"Cookie file: {cookie_file} exists={exists} size={size}")
         return exists and size > 0
+
+    async def _quick_login_check(self, ai_id: str, page: Any) -> bool:
+        """Quick check if user is already logged in (from previous session)."""
+        try:
+            url = page.url
+            _debug(f"Quick login check for {ai_id}: {url}")
+
+            if ai_id == "deepseek":
+                # DeepSeek: if not on sign_in page, likely logged in
+                if "/sign_in" not in url and "chat.deepseek.com" in url:
+                    # Verify with textarea
+                    textarea = page.locator("textarea")
+                    if await textarea.count() > 0 and await textarea.first.is_visible(timeout=1000):
+                        return True
+
+            elif ai_id == "qianwen":
+                # Qianwen: check for chat interface
+                if "login" not in url.lower() and "sign" not in url.lower():
+                    textarea = page.locator("textarea, [contenteditable='true']")
+                    if await textarea.count() > 0 and await textarea.first.is_visible(timeout=1000):
+                        return True
+
+            return False
+        except Exception as e:
+            _debug(f"Quick login check error: {e}")
+            return False
 
     def _is_on_ai_page(self, ai_id: str, url: str) -> bool:
         if ai_id == "deepseek":
