@@ -27,19 +27,28 @@ export function AIPlatformManager({ onComplete, isSetupMode = false }: AIPlatfor
   const [newName, setNewName] = useState('');
   const [newUrl, setNewUrl] = useState('');
 
-  // Check saved sessions on mount
+  // Check saved sessions on mount (with retry for backend startup)
   useEffect(() => {
-    fetch('http://localhost:8765/api/sessions/status')
-      .then(res => res.json())
-      .then(data => {
-        if (data.sessions) {
-          setPlatforms(prev => prev.map(p => ({
-            ...p,
-            connected: data.sessions[p.aiId] || false,
-          })));
+    const checkSessions = async () => {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+          const res = await fetch('http://localhost:8765/api/sessions/status');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.sessions) {
+              setPlatforms(prev => prev.map(p => ({
+                ...p,
+                connected: data.sessions[p.aiId] || false,
+              })));
+            }
+            return;
+          }
+        } catch {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
-      })
-      .catch(() => {});
+      }
+    };
+    checkSessions();
   }, []);
 
   // Listen for auth status updates
