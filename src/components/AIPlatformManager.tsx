@@ -27,28 +27,48 @@ export function AIPlatformManager({ onComplete, isSetupMode = false }: AIPlatfor
   const [newName, setNewName] = useState('');
   const [newUrl, setNewUrl] = useState('');
 
-  // Check saved sessions on mount (with retry for backend startup)
+  // Check saved sessions on mount
   useEffect(() => {
-    const checkSessions = async () => {
-      for (let attempt = 0; attempt < 10; attempt++) {
-        try {
-          const res = await fetch('http://localhost:8765/api/sessions/status');
-          if (res.ok) {
-            const data = await res.json();
-            if (data.sessions) {
-              setPlatforms(prev => prev.map(p => ({
-                ...p,
-                connected: data.sessions[p.aiId] || false,
-              })));
-            }
-            return;
+    // Method 1: Try backend API
+    const checkViaApi = async () => {
+      try {
+        const res = await fetch('http://localhost:8765/api/sessions/status');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.sessions) {
+            setPlatforms(prev => prev.map(p => ({
+              ...p,
+              connected: data.sessions[p.aiId] || false,
+            })));
+            return true;
           }
-        } catch {
-          await new Promise(resolve => setTimeout(resolve, 1000));
         }
-      }
+      } catch {}
+      return false;
     };
-    checkSessions();
+
+    // Method 2: Check config file via Tauri invoke
+    const checkViaConfig = async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const configStr = await invoke<string>('read_config');
+        const config = JSON.parse(configStr);
+        if (config.ais) {
+          setPlatforms(prev => prev.map(p => {
+            const configAi = config.ais.find((a: { aiId: string }) => a.aiId === p.aiId);
+            return {
+              ...p,
+              connected: configAi?.status === 'authenticated',
+            };
+          }));
+        }
+      } catch {}
+    };
+
+    // Try API first, fall back to config
+    checkViaApi().then(ok => {
+      if (!ok) checkViaConfig();
+    });
   }, []);
 
   // Listen for auth status updates
