@@ -321,6 +321,17 @@ class EmbeddedEngine(BrowserEngine):
     def is_authenticated(self, ai_id: str) -> bool:
         return ai_id in self._authenticated
 
+    def get_authenticated_ais(self) -> list[str]:
+        """Get list of AIs with saved sessions."""
+        return list(self._authenticated)
+
+    def check_all_sessions(self) -> dict[str, bool]:
+        """Check which AIs have saved cookie sessions."""
+        result = {}
+        for ai_id in ["deepseek", "qianwen", "gemini", "chatgpt", "claude"]:
+            result[ai_id] = self._has_saved_cookies(ai_id)
+        return result
+
     async def get_status(self) -> EngineStatus:
         pages = []
         for ai_id, page in self._pages.items():

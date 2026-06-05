@@ -391,6 +391,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 await handle_get_status(websocket)
             elif msg_type == "get_ais":
                 await handle_get_ais(websocket)
+            elif msg_type == "check_sessions":
+                await handle_check_sessions(websocket)
             elif msg_type == "reauth":
                 await handle_reauth(data.get("data", {}))
             elif msg_type == "ping":
@@ -498,6 +500,28 @@ async def handle_get_ais(websocket: WebSocket):
     await ws_manager.send_personal(websocket, {"type": "ai_list", "data": ais})
 
 
+async def handle_check_sessions(websocket: WebSocket):
+    """Check which AIs have saved login sessions."""
+    if not browser_engine:
+        await ws_manager.send_personal(websocket, {
+            "type": "sessions_status",
+            "data": {"sessions": {}}
+        })
+        return
+
+    sessions = browser_engine.check_all_sessions()
+    authenticated = browser_engine.get_authenticated_ais()
+
+    await ws_manager.send_personal(websocket, {
+        "type": "sessions_status",
+        "data": {
+            "sessions": sessions,
+            "authenticated": authenticated,
+        }
+    })
+    logger.info("Sessions check: authenticated=%s", authenticated)
+
+
 async def handle_reauth(data: dict):
     """Handle re-authentication via the engine's login method."""
     ai_id = data.get("ai_id")
@@ -575,6 +599,17 @@ async def _do_login(ai_id: str, login_url: str):
 from storage.local import LocalStorage
 
 storage = LocalStorage()
+
+
+@app.get("/api/sessions/status")
+async def get_sessions_status():
+    """Check which AIs have saved login sessions."""
+    if not browser_engine:
+        return {"sessions": {}, "authenticated": []}
+
+    sessions = browser_engine.check_all_sessions()
+    authenticated = browser_engine.get_authenticated_ais()
+    return {"sessions": sessions, "authenticated": authenticated}
 
 
 @app.get("/api/sessions")

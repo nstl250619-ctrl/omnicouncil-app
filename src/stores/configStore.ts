@@ -74,12 +74,29 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       const configStr = await invoke<string>('read_config');
       const config = JSON.parse(configStr);
 
-      // Force wizard to show if no AI is authenticated
-      const hasAuthenticatedAI = config.ais?.some((ai: { status: string }) => ai.status === 'authenticated') ?? false;
+      // Check backend for saved sessions
+      let hasAuthenticatedAI = false;
+      try {
+        const sessionRes = await fetch('http://localhost:8765/api/sessions/status');
+        if (sessionRes.ok) {
+          const sessionData = await sessionRes.json();
+          hasAuthenticatedAI = sessionData.authenticated?.length > 0;
+          // Update AI statuses from backend
+          if (config.ais && sessionData.sessions) {
+            config.ais = config.ais.map((ai: { aiId: string; [key: string]: unknown }) => ({
+              ...ai,
+              status: sessionData.sessions[ai.aiId] ? 'authenticated' : 'disconnected',
+            }));
+          }
+        }
+      } catch {
+        // Backend not ready, fall back to config file
+        hasAuthenticatedAI = config.ais?.some((ai: { status: string }) => ai.status === 'authenticated') ?? false;
+      }
 
       set({
         isFirstLaunch: config.isFirstLaunch ?? true,
-        setupCompleted: hasAuthenticatedAI ? (config.setupCompleted ?? false) : false,
+        setupCompleted: hasAuthenticatedAI ? true : (config.setupCompleted ?? false),
         engineMode: config.engineMode ?? 'embedded',
         ais: config.ais ?? DEFAULT_AIS,
       });
