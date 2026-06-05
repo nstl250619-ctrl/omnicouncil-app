@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAppStore } from '../stores/appStore';
 
@@ -24,7 +24,20 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   const { send } = useWebSocket();
   const [step, setStep] = useState<WizardStep>('mode');
   const [selectedMode, setSelectedMode] = useState<EngineMode | null>(null);
+  const [savedSessions, setSavedSessions] = useState<Record<string, boolean>>({});
   const authStatus = useAppStore((s) => s.authStatus);
+
+  // Check backend for saved sessions on mount
+  useEffect(() => {
+    fetch('http://localhost:8765/api/sessions/status')
+      .then(res => res.json())
+      .then(data => {
+        if (data.sessions) {
+          setSavedSessions(data.sessions);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleModeSelect = (mode: EngineMode) => {
     setSelectedMode(mode);
@@ -36,13 +49,20 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   };
 
   const getStatus = (aiId: string) => {
+    // Check WebSocket auth status first
     const s = authStatus[aiId];
-    if (!s) return { connected: false, connecting: false, message: '' };
-    return {
-      connected: s.status === 'authenticated',
-      connecting: s.status === 'connecting',
-      message: s.message,
-    };
+    if (s) {
+      return {
+        connected: s.status === 'authenticated',
+        connecting: s.status === 'connecting',
+        message: s.message,
+      };
+    }
+    // Fall back to saved session check
+    if (savedSessions[aiId]) {
+      return { connected: true, connecting: false, message: '已保存登录状态' };
+    }
+    return { connected: false, connecting: false, message: '' };
   };
 
   const connectedCount = AI_LIST.filter((ai) => getStatus(ai.aiId).connected).length;

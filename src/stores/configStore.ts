@@ -74,23 +74,30 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       const configStr = await invoke<string>('read_config');
       const config = JSON.parse(configStr);
 
-      // Check backend for saved sessions
+      // Wait for backend to be ready (retry up to 10 times)
       let hasAuthenticatedAI = false;
-      try {
-        const sessionRes = await fetch('http://localhost:8765/api/sessions/status');
-        if (sessionRes.ok) {
-          const sessionData = await sessionRes.json();
-          hasAuthenticatedAI = sessionData.authenticated?.length > 0;
-          // Update AI statuses from backend
-          if (config.ais && sessionData.sessions) {
-            config.ais = config.ais.map((ai: { aiId: string; [key: string]: unknown }) => ({
-              ...ai,
-              status: sessionData.sessions[ai.aiId] ? 'authenticated' : 'disconnected',
-            }));
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+          const sessionRes = await fetch('http://localhost:8765/api/sessions/status');
+          if (sessionRes.ok) {
+            const sessionData = await sessionRes.json();
+            hasAuthenticatedAI = sessionData.authenticated?.length > 0;
+            // Update AI statuses from backend
+            if (config.ais && sessionData.sessions) {
+              config.ais = config.ais.map((ai: { aiId: string; [key: string]: unknown }) => ({
+                ...ai,
+                status: sessionData.sessions[ai.aiId] ? 'authenticated' : 'disconnected',
+              }));
+            }
+            break; // Success
           }
+        } catch {
+          // Backend not ready yet, wait and retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
-      } catch {
-        // Backend not ready, fall back to config file
+      }
+
+      if (!hasAuthenticatedAI) {
         hasAuthenticatedAI = config.ais?.some((ai: { status: string }) => ai.status === 'authenticated') ?? false;
       }
 
