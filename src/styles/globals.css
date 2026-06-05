@@ -1405,7 +1405,289 @@ body {
 }
 
 /* ========================================
-   Setup Wizard
+   AI Platform Manager
+   ======================================== */
+.platform-manager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-primary);
+  padding: 40px;
+}
+
+.platform-container {
+  max-width: 900px;
+  width: 100%;
+}
+
+.platform-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.platform-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+.platform-header h1 {
+  font-size: 1.8rem;
+  margin-bottom: 8px;
+  color: var(--text-highlight);
+}
+
+.platform-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.platform-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.platform-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s;
+}
+
+.platform-card.connected {
+  border-color: var(--success);
+}
+
+.platform-card.disconnected {
+  border-color: var(--border);
+}
+
+.platform-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.platform-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: white;
+}
+
+.platform-card-info {
+  flex: 1;
+}
+
+.platform-card-name {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text-highlight);
+}
+
+.platform-card-status {
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
+.platform-card-status.connected {
+  color: var(--success);
+}
+
+.platform-card-status.disconnected {
+  color: var(--text-secondary);
+}
+
+.platform-card-connecting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-hover);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.platform-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.platform-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+}
+
+.platform-btn:hover {
+  background: var(--bg-hover);
+}
+
+.platform-btn.connect {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.platform-btn.connect:hover {
+  filter: brightness(1.1);
+}
+
+.platform-btn.connect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.platform-btn.disable {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.platform-btn.delete {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.platform-btn.delete:hover {
+  background: rgba(255, 61, 113, 0.1);
+}
+
+/* Add Platform Card */
+.add-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-style: dashed;
+  min-height: 150px;
+}
+
+.add-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.add-card-content {
+  text-align: center;
+}
+
+.add-icon {
+  font-size: 2rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.add-text {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Add Modal */
+.add-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.add-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  width: 400px;
+}
+
+.add-modal h2 {
+  margin-bottom: 16px;
+  color: var(--text-highlight);
+}
+
+.add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.add-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.add-form input {
+  padding: 10px 12px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.add-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.add-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.platform-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.platform-summary {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Pulse animation for connecting state */
+.pulse-loader {
+  display: flex;
+  gap: 4px;
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.pulse-dot:nth-child(2) { animation-delay: 0.2s; }
+.pulse-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ========================================
+   Setup Wizard (legacy, keep for reference)
    ======================================== */
 .setup-wizard {
   display: flex;

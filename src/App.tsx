@@ -11,7 +11,7 @@ import { ConsensusTab } from './components/ConsensusTab';
 import { ConflictTab } from './components/ConflictTab';
 import { HistoryView } from './components/HistoryView';
 import { StatusBar } from './components/StatusBar';
-import { SetupWizard } from './components/SetupWizard';
+import { AIPlatformManager } from './components/AIPlatformManager';
 import { Settings } from './components/Settings';
 import { ErrorToast } from './components/ErrorToast';
 
@@ -23,6 +23,7 @@ function App() {
   const responses = useAppStore((s) => s.responses);
   const { isFirstLaunch, setupCompleted, completeSetup, loadConfig } = useConfigStore();
   const [showSettings, setShowSettings] = useState(false);
+  const [showPlatformManager, setShowPlatformManager] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
   const [error, setError] = useState<{ message: string; recoverable: boolean; suggestion?: string } | null>(null);
 
@@ -55,9 +56,16 @@ function App() {
     loadConfig().then(() => setConfigLoaded(true));
   }, [loadConfig]);
 
-  // Show setup wizard on first launch
+  // Show AI Platform Manager on first launch
   if (configLoaded && (isFirstLaunch || !setupCompleted)) {
-    return <SetupWizard onComplete={completeSetup} />;
+    return (
+      <AIPlatformManager
+        isSetupMode={true}
+        onComplete={() => {
+          completeSetup();
+        }}
+      />
+    );
   }
 
   return (
@@ -74,6 +82,12 @@ function App() {
       </div>
       <StatusBar />
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showPlatformManager && (
+        <AIPlatformManager
+          isSetupMode={false}
+          onComplete={() => setShowPlatformManager(false)}
+        />
+      )}
       {error && (
         <ErrorToast
           error={error.message}
