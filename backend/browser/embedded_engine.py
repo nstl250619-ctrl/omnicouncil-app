@@ -159,18 +159,31 @@ class EmbeddedEngine(BrowserEngine):
             del self._contexts[ai_id]
             self._pages.pop(ai_id, None)
 
+        # Debug log (fixed path for Windows)
+        _log = os.path.join(os.environ.get("USERPROFILE", ""), ".omnicouncil", "login.log")
+        os.makedirs(os.path.dirname(_log), exist_ok=True)
+
+        def _debug(msg: str):
+            logger.info(msg)
+            with open(_log, "a", encoding="utf-8") as f:
+                f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
+
         browser = None
         try:
+            _debug(f"=== Login for {ai_id} at {url} ===")
+            _debug(f"Profile: {profile_dir}")
+
             browser = await self._playwright.chromium.launch_persistent_context(
                 profile_dir,
                 headless=False,
                 args=["--disable-blink-features=AutomationControlled"],
             )
+            _debug("Browser launched")
 
             page = browser.pages[0] if browser.pages else await browser.new_page()
 
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            logger.info("Login: waiting for user to close browser...")
+            _debug(f"Navigated to {url}, waiting for user to close browser...")
 
             # Poll for browser close (more reliable than disconnected event)
             max_wait = 300  # 5 minutes
@@ -179,36 +192,46 @@ class EmbeddedEngine(BrowserEngine):
 
             while time.time() - start < max_wait:
                 await asyncio.sleep(2)
+                elapsed = int(time.time() - start)
                 try:
-                    # Check if browser is still connected
-                    if not browser.is_connected():
+                    connected = browser.is_connected()
+                    if not connected:
                         browser_closed = True
-                        logger.info("Login: browser disconnected")
+                        _debug(f"Browser disconnected after {elapsed}s")
                         break
-                except Exception:
+                    if elapsed % 10 == 0:
+                        _debug(f"Browser still open ({elapsed}s)")
+                except Exception as e:
                     browser_closed = True
-                    logger.info("Login: browser check failed, assuming closed")
+                    _debug(f"Browser check error after {elapsed}s: {e}")
                     break
 
             if not browser_closed:
+                _debug("Login timeout (5 minutes)")
                 return False, "登录超时（5分钟）"
 
             # Wait for cookies to flush
             await asyncio.sleep(2)
 
             # Check if cookies were saved
-            if self._has_saved_cookies(ai_id):
+            has_cookies = self._has_saved_cookies(ai_id)
+            _debug(f"Cookie check: {has_cookies}")
+            if has_cookies:
                 self._authenticated.add(ai_id)
-                logger.info("Login successful for %s", ai_id)
+                _debug(f"Login successful for {ai_id}")
                 return True, ""
 
-            # Retry check
+            # Retry check after more time
+            _debug("Waiting 3s for cookies to flush...")
             await asyncio.sleep(3)
-            if self._has_saved_cookies(ai_id):
+            has_cookies = self._has_saved_cookies(ai_id)
+            _debug(f"Cookie check (retry): {has_cookies}")
+            if has_cookies:
                 self._authenticated.add(ai_id)
-                logger.info("Login successful for %s (retry)", ai_id)
+                _debug(f"Login successful for {ai_id} (retry)")
                 return True, ""
 
+            _debug(f"Login not detected for {ai_id}")
             return False, "未检测到登录状态"
 
         except Exception as e:
