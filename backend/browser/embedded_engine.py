@@ -1,17 +1,12 @@
-"""EmbeddedEngine — per-AI persistent context browser engine.
-
-Core design:
-- Each AI has its own persistent profile directory
-- Login and work share the SAME profile (cookies auto-persist)
-- Login success = cookies exist in profile directory
-- No cookie copying, no complex URL detection
-"""
+"""EmbeddedEngine — per-AI persistent context browser engine."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
+import traceback
 from pathlib import Path
 from typing import Any, Callable
 
@@ -19,12 +14,26 @@ from .engine import BrowserEngine, EngineMode, EngineStatus, AuthStatus, PageInf
 
 logger = logging.getLogger(__name__)
 
+# Fixed debug log path (works regardless of Path.home() resolution)
+DEBUG_LOG = "C:\\Users\\green\\.omnicouncil\\login.log"
+
+
+def _debug(msg: str):
+    """Write to both logger and fixed file path."""
+    logger.info(msg)
+    try:
+        os.makedirs(os.path.dirname(DEBUG_LOG), exist_ok=True)
+        with open(DEBUG_LOG, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
+    except Exception:
+        pass  # Never let logging crash the app
+
 
 class EmbeddedEngine(BrowserEngine):
     """Browser engine with per-AI persistent contexts."""
 
     def __init__(self, auth_dir: str | None = None, headless: bool = True):
-        self._auth_dir = auth_dir or str(Path.home() / ".omnicouncil" / "auth")
+        self._auth_dir = auth_dir or "C:\\Users\\green\\.omnicouncil\\auth"
         self._headless = headless
         self._playwright = None
         self._contexts: dict[str, Any] = {}
@@ -44,17 +53,16 @@ class EmbeddedEngine(BrowserEngine):
             from patchright.async_api import async_playwright
             self._playwright = await async_playwright().start()
             self._connected = True
-            logger.info("Embedded: Playwright connected")
+            _debug("Playwright connected")
 
-            # Check for saved sessions
             for ai_id in ["deepseek", "qianwen", "gemini", "chatgpt", "claude"]:
                 if self._has_saved_cookies(ai_id):
                     self._authenticated.add(ai_id)
-                    logger.info("Found saved session for %s", ai_id)
+                    _debug(f"Found saved session for {ai_id}")
 
             return True
         except Exception as e:
-            logger.error("Embedded: Failed to connect: %s", e)
+            _debug(f"Failed to connect: {e}")
             self._connected = False
             return False
 
@@ -79,13 +87,10 @@ class EmbeddedEngine(BrowserEngine):
         return self._connected and self._playwright is not None
 
     async def _get_context(self, ai_id: str) -> Any:
-        """Get or create persistent context for this AI."""
         if ai_id in self._contexts:
             return self._contexts[ai_id]
-
         profile_dir = self._get_profile_dir(ai_id)
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
-
         ctx = await self._playwright.chromium.launch_persistent_context(
             profile_dir,
             headless=self._headless,
@@ -97,7 +102,6 @@ class EmbeddedEngine(BrowserEngine):
     async def get_page(self, ai_id: str, url: str) -> Any:
         if not self._connected:
             raise RuntimeError("Browser not connected")
-
         if ai_id in self._pages:
             page = self._pages[ai_id]
             try:
@@ -105,7 +109,6 @@ class EmbeddedEngine(BrowserEngine):
                 return page
             except Exception:
                 del self._pages[ai_id]
-
         ctx = await self._get_context(ai_id)
         page = await ctx.new_page()
         try:
@@ -113,7 +116,6 @@ class EmbeddedEngine(BrowserEngine):
             await page.wait_for_timeout(2000)
         except Exception as e:
             logger.warning("Failed to navigate to %s: %s", url, e)
-
         self._pages[ai_id] = page
         return page
 
@@ -142,11 +144,8 @@ class EmbeddedEngine(BrowserEngine):
     async def login(self, ai_id: str, url: str) -> tuple[bool, str]:
         """Launch visible browser for manual login.
 
-        Uses the SAME profile as the work engine.
-        User closes browser → cookies auto-persisted → login detected.
+        Uses SAME profile as work engine. User closes browser → check cookies.
         """
-        logger.info("Login: %s at %s", ai_id, url)
-
         profile_dir = self._get_profile_dir(ai_id)
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
 
@@ -159,20 +158,12 @@ class EmbeddedEngine(BrowserEngine):
             del self._contexts[ai_id]
             self._pages.pop(ai_id, None)
 
-        # Debug log (fixed path for Windows)
-        _log = os.path.join(os.environ.get("USERPROFILE", ""), ".omnicouncil", "login.log")
-        os.makedirs(os.path.dirname(_log), exist_ok=True)
-
-        def _debug(msg: str):
-            logger.info(msg)
-            with open(_log, "a", encoding="utf-8") as f:
-                f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
+        _debug(f"=== Login for {ai_id} at {url} ===")
+        _debug(f"Profile: {profile_dir}")
 
         browser = None
         try:
-            _debug(f"=== Login for {ai_id} at {url} ===")
-            _debug(f"Profile: {profile_dir}")
-
+            _debug("Launching visible browser...")
             browser = await self._playwright.chromium.launch_persistent_context(
                 profile_dir,
                 headless=False,
@@ -182,11 +173,12 @@ class EmbeddedEngine(BrowserEngine):
 
             page = browser.pages[0] if browser.pages else await browser.new_page()
 
+            _debug(f"Navigating to {url}...")
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            _debug(f"Navigated to {url}, waiting for user to close browser...")
+            _debug("Navigation complete, waiting for user to close browser...")
 
-            # Poll for browser close (more reliable than disconnected event)
-            max_wait = 300  # 5 minutes
+            # Poll for browser close
+            max_wait = 300
             start = time.time()
             browser_closed = False
 
@@ -194,61 +186,81 @@ class EmbeddedEngine(BrowserEngine):
                 await asyncio.sleep(2)
                 elapsed = int(time.time() - start)
                 try:
-                    connected = browser.is_connected()
-                    if not connected:
+                    # Try multiple ways to detect browser close
+                    is_connected = browser.is_connected()
+                    if not is_connected:
                         browser_closed = True
-                        _debug(f"Browser disconnected after {elapsed}s")
+                        _debug(f"Browser disconnected (is_connected=False) after {elapsed}s")
                         break
-                    if elapsed % 10 == 0:
-                        _debug(f"Browser still open ({elapsed}s)")
+
+                    # Also check if pages are still accessible
+                    pages = browser.pages
+                    if len(pages) == 0:
+                        browser_closed = True
+                        _debug(f"Browser has no pages after {elapsed}s")
+                        break
+
                 except Exception as e:
                     browser_closed = True
-                    _debug(f"Browser check error after {elapsed}s: {e}")
+                    _debug(f"Browser check exception after {elapsed}s: {e}")
                     break
+
+                if elapsed % 15 == 0:
+                    _debug(f"Still waiting... ({elapsed}s)")
 
             if not browser_closed:
                 _debug("Login timeout (5 minutes)")
                 return False, "登录超时（5分钟）"
 
-            # Wait for cookies to flush
+            _debug("Browser closed, checking cookies...")
+
+            # Wait for cookies to flush to disk
             await asyncio.sleep(2)
 
-            # Check if cookies were saved
+            # Check cookies
             has_cookies = self._has_saved_cookies(ai_id)
             _debug(f"Cookie check: {has_cookies}")
+
             if has_cookies:
                 self._authenticated.add(ai_id)
-                _debug(f"Login successful for {ai_id}")
+                _debug(f"LOGIN SUCCESSFUL for {ai_id}")
                 return True, ""
 
-            # Retry check after more time
-            _debug("Waiting 3s for cookies to flush...")
+            # Retry
+            _debug("Waiting 3 more seconds for cookies...")
             await asyncio.sleep(3)
             has_cookies = self._has_saved_cookies(ai_id)
             _debug(f"Cookie check (retry): {has_cookies}")
+
             if has_cookies:
                 self._authenticated.add(ai_id)
-                _debug(f"Login successful for {ai_id} (retry)")
+                _debug(f"LOGIN SUCCESSFUL for {ai_id} (retry)")
                 return True, ""
 
-            _debug(f"Login not detected for {ai_id}")
+            _debug(f"LOGIN FAILED for {ai_id} - no cookies found")
             return False, "未检测到登录状态"
 
         except Exception as e:
-            logger.exception("Login error for %s", ai_id)
+            tb = traceback.format_exc()
+            _debug(f"LOGIN ERROR: {e}")
+            _debug(f"TRACEBACK:\n{tb}")
             return False, str(e)
         finally:
             if browser:
                 try:
                     if browser.is_connected():
                         await browser.close()
-                except Exception:
-                    pass
+                        _debug("Browser closed in finally")
+                except Exception as e:
+                    _debug(f"Error closing browser: {e}")
 
     def _has_saved_cookies(self, ai_id: str) -> bool:
         profile_dir = Path(self._get_profile_dir(ai_id))
         cookie_file = profile_dir / "Default" / "Cookies"
-        return cookie_file.exists() and cookie_file.stat().st_size > 0
+        exists = cookie_file.exists()
+        size = cookie_file.stat().st_size if exists else 0
+        _debug(f"Cookie file: {cookie_file} exists={exists} size={size}")
+        return exists and size > 0
 
     def _is_on_ai_page(self, ai_id: str, url: str) -> bool:
         if ai_id == "deepseek":

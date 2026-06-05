@@ -535,22 +535,38 @@ async def handle_reauth(data: dict):
 
 async def _do_login(ai_id: str, login_url: str):
     """Run login in background and broadcast result."""
+    import traceback
+    debug_path = "C:\\Users\\green\\.omnicouncil\\login.log"
+    os.makedirs(os.path.dirname(debug_path), exist_ok=True)
+
+    def _debug(msg: str):
+        logger.info(msg)
+        try:
+            with open(debug_path, "a", encoding="utf-8") as f:
+                f.write(f"[{time.strftime('%H:%M:%S')}] [main] {msg}\n")
+        except Exception:
+            pass
+
     try:
-        logger.info("Starting login for %s", ai_id)
+        _debug(f"Starting login for {ai_id} at {login_url}")
         success, error_msg = await browser_engine.login(ai_id, login_url)
+        _debug(f"Login result: success={success}, error={error_msg}")
 
         if success:
             await ws_manager.broadcast({
                 "type": "auth_status",
                 "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
             })
+            _debug(f"Broadcasted authenticated for {ai_id}")
         else:
             await ws_manager.broadcast({
                 "type": "auth_status",
                 "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {error_msg}"}
             })
+            _debug(f"Broadcasted failed for {ai_id}: {error_msg}")
     except Exception as e:
-        logger.exception("Login error for %s", ai_id)
+        tb = traceback.format_exc()
+        _debug(f"LOGIN EXCEPTION for {ai_id}: {e}\n{tb}")
         await ws_manager.broadcast({
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": f"登录异常: {str(e)}"}
