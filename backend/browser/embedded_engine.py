@@ -198,9 +198,8 @@ class EmbeddedEngine(BrowserEngine):
             # Gemini: explicitly save storage state (cookies + localStorage)
             auth_json = Path(self._auth_dir) / f"{ai_id}.json"
             try:
-                if browser.is_connected():
-                    await browser.storage_state(path=str(auth_json))
-                    _debug(f"Storage state saved to {auth_json}")
+                await browser.storage_state(path=str(auth_json))
+                _debug(f"Storage state saved to {auth_json}")
             except Exception as e:
                 _debug(f"Failed to save storage state: {e}")
 
