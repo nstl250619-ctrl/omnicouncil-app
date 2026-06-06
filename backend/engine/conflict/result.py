@@ -1,47 +1,39 @@
-"""Conflict result models."""
+"""Conflict result models — immutable dataclasses."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
 
-@dataclass
+@dataclass(frozen=True)
+class ConflictPosition:
+    """A position in a conflict."""
+    ai_id: str
+    stance: str
+    evidence: str = ""
+
+
+@dataclass(frozen=True)
 class ConflictPoint:
     """A specific point of conflict between AIs."""
+    conflict_id: str
     topic: str
-    positions: list[dict]  # [{provider_id, stance, reasoning}]
+    positions: list[ConflictPosition]
     root_cause: str = ""
     severity: float = 0.0  # 0-1
     resolvable: bool = True
 
-    def to_dict(self) -> dict:
-        return {
-            "topic": self.topic,
-            "positions": self.positions,
-            "root_cause": self.root_cause,
-            "severity": self.severity,
-            "resolvable": self.resolvable,
-        }
 
-
-@dataclass
+@dataclass(frozen=True)
 class ConflictResult:
     """Result of conflict analysis."""
     task_id: str
     query: str
-    conflicts: list[ConflictPoint] = field(default_factory=list)
+    conflicts: list[ConflictPoint]
     summary: str = ""
     overall_conflict_level: float = 0.0  # 0-1
+    generated_at: float = 0.0
 
     @property
     def has_conflicts(self) -> bool:
         return len(self.conflicts) > 0
-
-    def to_dict(self) -> dict:
-        return {
-            "task_id": self.task_id,
-            "query": self.query,
-            "conflicts": [c.to_dict() for c in self.conflicts],
-            "summary": self.summary,
-            "overall_conflict_level": self.overall_conflict_level,
-        }

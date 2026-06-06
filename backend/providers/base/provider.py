@@ -88,6 +88,42 @@ class BaseProvider(ABC):
             await self._engine.close_page(self.config().provider_id)
         self._status = AIStatus.INITIALIZING
 
+    # ========== Runtime: Health ==========
+
+    async def health_check(self) -> dict[str, Any]:
+        """Run health check. Returns status dict.
+
+        Override for AI-specific checks.
+        """
+        from providers.health_monitor import HealthStatus
+        ps = self.get_status()
+        if ps.status == AIStatus.READY:
+            status = HealthStatus.HEALTHY
+        elif ps.status == AIStatus.LOGIN_REQUIRED:
+            status = HealthStatus.DEGRADED
+        else:
+            status = HealthStatus.FAILED
+        return {
+            "status": status.value,
+            "login_valid": ps.status != AIStatus.LOGIN_REQUIRED,
+            "error": None,
+        }
+
+    # ========== Runtime: Login ==========
+
+    async def login(self, url: str | None = None) -> tuple[bool, str]:
+        """Trigger login flow. Returns (success, error_message)."""
+        if not self._engine:
+            return False, "No browser engine"
+        login_url = url or self.config().login_url
+        return await self._engine.login(self.config().provider_id, login_url)
+
+    def is_authenticated(self) -> bool:
+        """Check if provider has valid session."""
+        if not self._engine:
+            return False
+        return self._engine.is_authenticated(self.config().provider_id)
+
     # ========== Runtime: Core execution ==========
 
     async def send_prompt(self, prompt: str, options: SubmitOptions | None = None) -> AIResponse:

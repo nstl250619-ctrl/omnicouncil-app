@@ -1,15 +1,21 @@
-"""Conflict engine — analyzes why AIs disagree."""
+"""ConflictEngine — analyzes why AIs disagree.
+
+Stateless. Pure function: RoundContext + ComparisonContext + ConsensusReport → ConflictResult.
+"""
 
 from __future__ import annotations
 
 import logging
+import time
 from typing import TYPE_CHECKING
 
-from .result import ConflictPoint, ConflictResult
+from shared.types import generate_id
+
+from .result import ConflictPoint, ConflictPosition, ConflictResult
 
 if TYPE_CHECKING:
-    from ..collector.response import AIResponse
-    from ..comparison.result import ComparisonResult
+    from engine.consensus.result import ConsensusReport
+    from shared.types import ComparisonContext, RoundContext
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ConflictEngine:
     """Analyzes conflicts between AI responses.
 
-    Takes comparison results and deepens the analysis:
+    Takes comparison and consensus results and deepens the analysis:
     - Why do AIs disagree?
     - What are the root causes?
     - Are the conflicts resolvable?
@@ -25,75 +31,98 @@ class ConflictEngine:
 
     def analyze(
         self,
-        task_id: str,
-        query: str,
-        responses: list[AIResponse],
-        comparison: ComparisonResult,
+        round_ctx: RoundContext,
+        comparison_ctx: ComparisonContext,
+        consensus_report: ConsensusReport | None = None,
     ) -> ConflictResult:
         """Analyze conflicts from comparison results."""
+        start = time.time()
         conflicts = []
 
         # Analyze each disagreement from comparison
-        for disagreement in comparison.disagreements:
-            conflict = self._analyze_disagreement(disagreement, responses)
+        for diff in comparison_ctx.differences:
+            conflict = self._analyze_difference(diff)
             if conflict:
                 conflicts.append(conflict)
 
-        # Detect additional conflicts by response length variance
-        if len(responses) >= 2:
-            lengths = [len(r.content) for r in responses]
+        # Analyze response length variance
+        successful = [r for r in round_ctx.results if r.status.value == "success"]
+        if len(successful) >= 2:
+            lengths = [len(r.raw_text) for r in successful]
             avg_len = sum(lengths) / len(lengths)
             if max(lengths) > avg_len * 3:
+                positions = [
+                    ConflictPosition(
+                        ai_id=r.ai_id,
+                        stance=f"回复长度: {len(r.raw_text)}字",
+                    )
+                    for r in successful
+                ]
                 conflicts.append(ConflictPoint(
+                    conflict_id=generate_id("cf"),
                     topic="回复详细度差异",
-                    positions=[
-                        {"provider_id": r.provider_id, "stance": f"回复长度: {len(r.content)}字"}
-                        for r in responses
-                    ],
+                    positions=positions,
                     root_cause="不同AI对问题的理解深度不同",
                     severity=0.3,
                     resolvable=True,
                 ))
 
-        # Calculate overall conflict level
+        # Overall conflict level
         overall = sum(c.severity for c in conflicts) / len(conflicts) if conflicts else 0.0
 
-        # Generate summary
-        summary = self._generate_summary(conflicts, responses)
+        # Summary
+        summary = self._generate_summary(conflicts)
+
+        elapsed = time.time() - start
+        logger.info(
+            "Conflict analysis for task %s in %.2fs: %d conflicts, level=%.2f",
+            round_ctx.task_id, elapsed, len(conflicts), overall,
+        )
 
         return ConflictResult(
-            task_id=task_id,
-            query=query,
+            task_id=round_ctx.task_id,
+            query=round_ctx.query,
             conflicts=conflicts,
             summary=summary,
-            overall_conflict_level=overall,
+            overall_conflict_level=round(overall, 3),
+            generated_at=time.time(),
         )
 
-    def _analyze_disagreement(self, disagreement, responses: list[AIResponse]) -> ConflictPoint | None:
-        """Analyze a single disagreement to find root cause."""
-        if not disagreement.positions:
+    def _analyze_difference(self, diff) -> ConflictPoint | None:
+        """Analyze a single difference to find root cause."""
+        if not diff.involved_ais:
             return None
 
-        # Simple root cause analysis
-        root_cause = "不同AI基于不同训练数据和推理路径得出不同结论"
+        positions = []
+        for ai_id, stance in diff.involved_ais:
+            positions.append(ConflictPosition(
+                ai_id=ai_id,
+                stance=stance[:100],
+            ))
 
-        if len(disagreement.positions) >= 2:
-            stances = [p.get("stance", "") for p in disagreement.positions]
-            # Check if it's a factual vs opinion disagreement
-            if any(w in " ".join(stances) for w in ["数据", "事实", "统计"]):
-                root_cause = "事实性分歧：不同AI引用了不同的数据来源"
-            elif any(w in " ".join(stances) for w in ["我认为", "我觉得", "个人观点"]):
-                root_cause = "观点性分歧：不同AI有不同的价值判断"
+        # Root cause analysis
+        stances = [s for _, s in diff.involved_ais]
+        all_text = " ".join(stances)
+
+        if any(w in all_text for w in ["数据", "事实", "统计", "source", "data"]):
+            root_cause = "事实性分歧：不同AI引用了不同的数据来源"
+        elif any(w in all_text for w in ["我认为", "我觉得", "个人观点", "I think"]):
+            root_cause = "观点性分歧：不同AI有不同的价值判断"
+        elif any(w in all_text for w in ["方法", "策略", "步骤", "approach", "method"]):
+            root_cause = "方法论分歧：不同AI推荐不同的解决路径"
+        else:
+            root_cause = "不同AI基于不同训练数据和推理路径得出不同结论"
 
         return ConflictPoint(
-            topic=disagreement.topic,
-            positions=disagreement.positions,
+            conflict_id=generate_id("cf"),
+            topic=diff.dimension,
+            positions=positions,
             root_cause=root_cause,
-            severity=disagreement.severity,
-            resolvable=True,
+            severity=round(diff.strength, 3),
+            resolvable=diff.strength < 0.7,
         )
 
-    def _generate_summary(self, conflicts: list[ConflictPoint], responses: list[AIResponse]) -> str:
+    def _generate_summary(self, conflicts: list[ConflictPoint]) -> str:
         if not conflicts:
             return "未发现显著冲突。所有AI观点基本一致。"
 

@@ -1,8 +1,11 @@
-"""Gemini provider implementation."""
+"""XiaoMiMo provider implementation.
+
+XiaoMiMo is Xiaomi's AI assistant.
+Chat URL: https://mimo.xiaomi.com or similar.
+"""
 
 from __future__ import annotations
 
-import contextlib
 import time
 from typing import Any
 
@@ -11,39 +14,34 @@ from shared.errors import AILoginRequiredError
 from ..base import BaseProvider, ProviderConfig
 
 
-class GeminiProvider(BaseProvider):
+class XiaoMiMoProvider(BaseProvider):
 
     def config(self) -> ProviderConfig:
         return ProviderConfig(
-            provider_id="gemini",
-            display_name="Gemini",
-            login_url="https://gemini.google.com",
-            chat_url="https://gemini.google.com/app",
-            icon_color="#A78BFA",
-            icon_emoji="💎",
+            provider_id="mimo",
+            display_name="MiMo",
+            login_url="https://mimo.xiaomi.com",
+            chat_url="https://mimo.xiaomi.com",
+            icon_color="#FF6900",
+            icon_emoji="🟠",
         )
 
     async def _send_async(self, prompt: str, timeout_ms: int) -> str:
-        """Gemini-specific send flow."""
+        """MiMo-specific send flow."""
         if not self._engine:
-            raise RuntimeError("Gemini: no browser engine")
+            raise RuntimeError("MiMo: no browser engine")
 
         cfg = self.config()
         page = await self._engine.get_page(cfg.provider_id, cfg.chat_url)
         await page.wait_for_timeout(3000)
 
-        # Check login
         if not await self._is_logged_in(page):
             raise AILoginRequiredError(cfg.provider_id)
 
-        # Find input
         input_box = await self._find_input(page)
         if input_box is None:
-            if await self._has_login_redirect(page):
-                raise AILoginRequiredError(cfg.provider_id)
-            raise RuntimeError("Gemini: could not find input box")
+            raise RuntimeError("MiMo: could not find input box")
 
-        # Type and send
         await input_box.click()
         await page.wait_for_timeout(300)
         await input_box.fill(prompt)
@@ -55,6 +53,7 @@ class GeminiProvider(BaseProvider):
 
     async def _find_input(self, page: Any) -> Any:
         selectors = [
+            "[contenteditable='true'][role='textbox']",
             "[contenteditable='true']",
             "textarea",
             "[role='textbox']",
@@ -69,20 +68,12 @@ class GeminiProvider(BaseProvider):
         return None
 
     async def _is_logged_in(self, page: Any) -> bool:
-        """Check if logged in via Google account."""
         url = page.url
-        if "accounts.google.com" in url:
-            return False
-        if "signin" in url.lower() or "login" in url.lower():
+        if "login" in url.lower() or "signin" in url.lower() or "sign-in" in url.lower():
             return False
         return True
 
-    async def _has_login_redirect(self, page: Any) -> bool:
-        url = page.url
-        return "accounts.google.com" in url or "signin" in url.lower()
-
     async def _extract_response(self, page: Any, prompt: str, timeout_ms: int) -> str:
-        """Extract Gemini response."""
         idle_ms = 3000
         last_response = ""
         idle_start = None
@@ -104,14 +95,15 @@ class GeminiProvider(BaseProvider):
 
         if last_response:
             return last_response
-        raise TimeoutError("Gemini response timed out")
+        raise TimeoutError("MiMo response timed out")
 
     async def _try_selector_extraction(self, page: Any, prompt: str) -> str:
         selectors = [
             '[data-role="assistant"]',
+            '[class*="assistant"]',
             '[class*="response"]',
-            '[class*="model-response"]',
-            '[class*="message-content"]',
+            '[class*="bot-message"]',
+            '[class*="ai-message"]',
         ]
         for sel in selectors:
             try:
@@ -147,8 +139,8 @@ class GeminiProvider(BaseProvider):
 
     def _is_ui_element(self, text: str) -> bool:
         ui_elements = {
-            "New chat", "Gemini", "Google", "Upgrade", "Settings",
-            "Help", "Activity", "Sign in", "Send", "Copy",
+            "MiMo", "New chat", "Settings", "Sign in", "Send", "Copy",
+            "Regenerate", "Help", "History",
         }
         return text in ui_elements or len(text) < 2
 

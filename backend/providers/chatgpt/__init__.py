@@ -1,4 +1,4 @@
 """ChatGPT provider."""
-from .provider import ChatGPTProvider
+from .provider import OpenAIProvider
 
-__all__ = ["ChatGPTProvider"]
+__all__ = ["OpenAIProvider"]

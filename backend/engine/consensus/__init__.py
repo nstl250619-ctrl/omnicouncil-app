@@ -1,5 +1,20 @@
-"""Consensus engine — generates final consensus report."""
+"""Consensus engine — generates consensus reports from comparison results."""
 from .engine import ConsensusEngine
-from .result import ConsensusReport
+from .result import (
+    ConsensusPoint,
+    ConsensusRecommendation,
+    ConsensusReport,
+    ConsensusSummaryStats,
+    DisagreementPoint,
+    DisagreementPosition,
+)
 
-__all__ = ["ConsensusEngine", "ConsensusReport"]
+__all__ = [
+    "ConsensusEngine",
+    "ConsensusPoint",
+    "ConsensusRecommendation",
+    "ConsensusReport",
+    "ConsensusSummaryStats",
+    "DisagreementPoint",
+    "DisagreementPosition",
+]

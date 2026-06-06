@@ -69,22 +69,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize config
     config = load_config()
 
-    # Initialize Provider Registry (auto-discovers providers)
-    state.provider_registry = create_default_registry()
-    logger.info("Providers: %s", [p.config().provider_id for p in state.provider_registry.get_all()])
-
     # Initialize Browser Engine
     browser_mode = "embedded"
     state.browser_engine = create_engine(browser_mode, headless=True)
     connected = await state.browser_engine.connect()
     logger.info("Browser engine: %s (connected=%s)", browser_mode, connected)
 
+    # Initialize Provider Runtime OS
+    from providers.runtime import ProviderRuntime
+    state.provider_runtime = ProviderRuntime()
+
+    # Auto-discover and register providers
+    registry = create_default_registry()
+    for provider in registry.get_all():
+        provider._engine = state.browser_engine
+        await state.provider_runtime.register(provider)
+    state.provider_registry = registry
+    logger.info("Providers: %s", state.provider_runtime.get_ids())
+
     # Initialize Layer 1: AI Access — register all providers as adapters
     state.ai_manager = AIAccessManager(event_bus=state.event_bus)
-    for provider in state.provider_registry.get_all():
-        provider._engine = state.browser_engine
+    for provider in state.provider_runtime.get_all():
         state.ai_manager.register_adapter(provider)
     await state.ai_manager.initialize()
+    await state.provider_runtime.initialize_all()
 
     # Initialize Layer 2: Scheduler
     state.scheduler = SchedulerCenter(
@@ -99,6 +107,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize Layer 4: Comparison
     state.comparison_engine = ComparisonEngine(config=config.comparison, event_bus=state.event_bus)
+
+    # Initialize Layer 5: Consensus + Conflict + Judge
+    from engine.consensus import ConsensusEngine
+    from engine.conflict import ConflictEngine
+    from engine.judge import JudgeEngine
+    state.consensus_engine = ConsensusEngine(config=config.comparison)
+    state.conflict_engine = ConflictEngine()
+    state.judge_engine = JudgeEngine()
 
     # Initialize Storage
     state.storage = LocalStorage()
@@ -131,6 +147,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Cleanup
     logger.info("Shutting down OmniCouncil backend...")
+    if state.provider_runtime:
+        await state.provider_runtime.destroy_all()
     if state.browser_engine:
         await state.browser_engine.disconnect()
     if state.ai_manager:

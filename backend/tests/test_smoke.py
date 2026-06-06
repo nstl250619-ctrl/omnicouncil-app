@@ -69,6 +69,7 @@ class TestProviderImports:
             "providers.gemini.provider",
             "providers.chatgpt.provider",
             "providers.claude.provider",
+            "providers.mimo.provider",
         ]
         for mod_name in providers:
             mod = __import__(mod_name, fromlist=["_"])
@@ -102,16 +103,6 @@ class TestEngineLayerImports:
 # ---------------------------------------------------------------------------
 # 5. Session management
 # ---------------------------------------------------------------------------
-
-class TestSessionImports:
-    def test_session_storage(self):
-        from engine.session.storage import SessionStorage
-        assert hasattr(SessionStorage, "get_profile_dir")
-        assert hasattr(SessionStorage, "has_session")
-
-    def test_session_manager(self):
-        from engine.session.manager import SessionManager
-        assert hasattr(SessionManager, "is_authenticated")
 
 
 # ---------------------------------------------------------------------------

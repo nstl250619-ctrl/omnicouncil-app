@@ -127,8 +127,16 @@ class EmbeddedEngine(BrowserEngine):
             url = page.url
             if ai_id == "deepseek" and "/sign_in" in url:
                 return AuthStatus.NOT_LOGGED_IN
-            if ai_id == "qianwen" and "login" in url.lower():
-                return AuthStatus.NOT_LOGGED_IN
+            if ai_id == "qianwen":
+                # DOM-based: check for visible login button
+                login_btns = page.locator('button:has-text("登录"), a:has-text("登录")')
+                count = await login_btns.count()
+                for i in range(count):
+                    btn = login_btns.nth(i)
+                    if await btn.is_visible():
+                        text = await btn.inner_text()
+                        if text.strip() == "登录":
+                            return AuthStatus.NOT_LOGGED_IN
         except Exception:
             pass
         return AuthStatus.AUTHENTICATED
@@ -281,11 +289,22 @@ class EmbeddedEngine(BrowserEngine):
                     if await textarea.count() > 0 and await textarea.first.is_visible(timeout=1000):
                         return True
 
-            elif ai_id == "qianwen":  # noqa: SIM102
-                # Qianwen: check for chat interface
-                if "login" not in url.lower() and "sign" not in url.lower():
-                    textarea = page.locator("textarea, [contenteditable='true']")
-                    if await textarea.count() > 0 and await textarea.first.is_visible(timeout=1000):
+            elif ai_id == "qianwen":
+                # Qianwen: check for absence of login button (DOM-based)
+                if "qianwen" in url:
+                    login_btns = page.locator(
+                        'button:has-text("登录"), a:has-text("登录")'
+                    )
+                    count = await login_btns.count()
+                    has_visible_login = False
+                    for i in range(count):
+                        btn = login_btns.nth(i)
+                        if await btn.is_visible():
+                            text = await btn.inner_text()
+                            if text.strip() == "登录":
+                                has_visible_login = True
+                                break
+                    if not has_visible_login:
                         return True
 
             return False

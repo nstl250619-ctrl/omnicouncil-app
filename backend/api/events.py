@@ -145,12 +145,133 @@ async def run_comparison(task_id: str):
                 }
             }
         })
+
+        # Trigger consensus analysis (pass comparison result via parameter)
+        asyncio.create_task(run_consensus(task_id, ctx, comparison))
+
     except Exception as e:
         logger.exception("Comparison analysis failed for task %s", task_id)
         await _ws_manager.broadcast({
             "type": "error",
             "data": {"task_id": task_id, "error": f"对比分析失败: {str(e)}", "recoverable": True}
         })
+
+
+async def run_consensus(task_id: str, round_ctx, comparison_ctx):
+    """Run consensus analysis and broadcast result."""
+    state = _try_state()
+    consensus_engine = state.consensus_engine if state else None
+    if not consensus_engine:
+        return
+
+    try:
+        report = await asyncio.to_thread(
+            consensus_engine.analyze, round_ctx, comparison_ctx
+        )
+        await _ws_manager.broadcast({
+            "type": "consensus_ready",
+            "data": {
+                "task_id": task_id,
+                "consensus_report": {
+                    "task_id": report.task_id,
+                    "query": report.query,
+                    "conclusion": report.conclusion,
+                    "confidence": report.confidence,
+                    "agreement_level": report.agreement_level,
+                    "degraded": report.degraded,
+                    "consensus_points": [
+                        {
+                            "point_id": p.point_id,
+                            "statement": p.statement,
+                            "supporting_ais": p.supporting_ais,
+                            "agreement_ratio": p.agreement_ratio,
+                            "confidence": p.confidence,
+                        }
+                        for p in report.consensus_points
+                    ],
+                    "disagreements": [
+                        {
+                            "point_id": d.point_id,
+                            "dimension": d.dimension,
+                            "severity": d.severity,
+                            "diff_type": d.diff_type,
+                            "resolvable": d.resolvable,
+                            "positions": [
+                                {"ai_id": p.ai_id, "stance": p.stance}
+                                for p in d.positions
+                            ],
+                        }
+                        for d in report.disagreements
+                    ],
+                    "recommendations": [
+                        {
+                            "text": r.text,
+                            "basis": r.basis,
+                            "priority": r.priority,
+                        }
+                        for r in report.recommendations
+                    ],
+                    "summary_stats": {
+                        "total_ais": report.summary_stats.total_ais,
+                        "successful_ais": report.summary_stats.successful_ais,
+                        "total_consensus_points": report.summary_stats.total_consensus_points,
+                        "total_disagreements": report.summary_stats.total_disagreements,
+                        "avg_pairwise_similarity": report.summary_stats.avg_pairwise_similarity,
+                    },
+                },
+            },
+        })
+
+        # Trigger conflict analysis
+        asyncio.create_task(run_conflict(task_id, round_ctx, comparison_ctx, report))
+
+    except Exception as e:
+        logger.exception("Consensus analysis failed for task %s", task_id)
+        await _ws_manager.broadcast({
+            "type": "error",
+            "data": {"task_id": task_id, "error": f"共识分析失败: {str(e)}", "recoverable": True}
+        })
+
+
+async def run_conflict(task_id: str, round_ctx, comparison_ctx, consensus_report):
+    """Run conflict analysis and broadcast result."""
+    state = _try_state()
+    conflict_engine = state.conflict_engine if state else None
+    if not conflict_engine:
+        return
+
+    try:
+        result = await asyncio.to_thread(
+            conflict_engine.analyze, round_ctx, comparison_ctx, consensus_report
+        )
+        await _ws_manager.broadcast({
+            "type": "conflict_ready",
+            "data": {
+                "task_id": task_id,
+                "conflict_result": {
+                    "task_id": result.task_id,
+                    "query": result.query,
+                    "summary": result.summary,
+                    "overall_conflict_level": result.overall_conflict_level,
+                    "conflicts": [
+                        {
+                            "conflict_id": c.conflict_id,
+                            "topic": c.topic,
+                            "root_cause": c.root_cause,
+                            "severity": c.severity,
+                            "resolvable": c.resolvable,
+                            "positions": [
+                                {"ai_id": p.ai_id, "stance": p.stance}
+                                for p in c.positions
+                            ],
+                        }
+                        for c in result.conflicts
+                    ],
+                },
+            },
+        })
+    except Exception as e:
+        logger.exception("Conflict analysis failed for task %s", task_id)
 
 
 async def on_progress(task_id: str, completed_count: int, total_count: int, **kwargs):
