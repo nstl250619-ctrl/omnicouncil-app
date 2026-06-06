@@ -16,7 +16,7 @@ import { Settings } from './components/Settings';
 import { ErrorToast } from './components/ErrorToast';
 
 function App() {
-  useWebSocket();
+  const { send } = useWebSocket();
 
   const activeTab = useAppStore((s) => s.activeTab);
   const connectionStatus = useAppStore((s) => s.connectionStatus);
@@ -61,6 +61,7 @@ function App() {
     return (
       <AIPlatformManager
         isSetupMode={true}
+        send={send}
         onComplete={() => {
           completeSetup();
         }}
@@ -85,6 +86,7 @@ function App() {
       {showPlatformManager && (
         <AIPlatformManager
           isSetupMode={false}
+          send={send}
           onComplete={() => setShowPlatformManager(false)}
         />
       )}

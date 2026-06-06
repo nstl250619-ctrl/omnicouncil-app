@@ -163,9 +163,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(title="OmniCouncil", version="0.1.0", lifespan=lifespan)
 
+class DevCORSMiddleware(CORSMiddleware):
+    """CORS middleware that allows any localhost/127.0.0.1 origin (dev mode)."""
+
+    def is_allowed_origin(self, origin: str) -> bool:
+        if super().is_allowed_origin(origin):
+            return True
+        return bool(origin) and (
+            origin.startswith("http://localhost:")
+            or origin.startswith("http://127.0.0.1:")
+        )
+
+
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["tauri://localhost", "http://localhost:8765", "http://127.0.0.1:8765"],
+    DevCORSMiddleware,
+    allow_origins=[
+        "tauri://localhost",
+        "http://localhost:8765",
+        "http://127.0.0.1:8765",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

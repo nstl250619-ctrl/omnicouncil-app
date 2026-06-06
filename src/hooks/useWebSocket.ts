@@ -13,57 +13,11 @@ export function useWebSocket() {
   const setConnectionStatus = useAppStore((s) => s.setConnectionStatus);
   const handleMessage = useAppStore((s) => s.handleMessage);
 
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('[WS] Connected');
-      setConnectionStatus('connected');
-
-      // Start heartbeat
-      heartbeatIntervalRef.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'ping', data: {} }));
-        }
-      }, HEARTBEAT_INTERVAL);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        handleMessage(msg);
-      } catch (e) {
-        console.error('[WS] Failed to parse message:', e);
-      }
-    };
-
-    ws.onclose = () => {
-      console.log('[WS] Disconnected');
-      setConnectionStatus('disconnected');
-      clearInterval(heartbeatIntervalRef.current);
-
-      // Auto reconnect
-      reconnectTimeoutRef.current = setTimeout(() => {
-        console.log('[WS] Reconnecting...');
-        setConnectionStatus('reconnecting');
-        connect();
-      }, RECONNECT_DELAY);
-    };
-
-    ws.onerror = (error) => {
-      console.error('[WS] Error:', error);
-    };
-  }, [setConnectionStatus, handleMessage]);
-
-  const disconnect = useCallback(() => {
-    clearTimeout(reconnectTimeoutRef.current);
-    clearInterval(heartbeatIntervalRef.current);
-    wsRef.current?.close();
-    wsRef.current = null;
-  }, []);
+  // Stable refs so the effect doesn't re-run when store functions change
+  const setConnectionStatusRef = useRef(setConnectionStatus);
+  const handleMessageRef = useRef(handleMessage);
+  setConnectionStatusRef.current = setConnectionStatus;
+  handleMessageRef.current = handleMessage;
 
   const send = useCallback((type: string, data: Record<string, unknown> = {}) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -74,9 +28,74 @@ export function useWebSocket() {
   }, []);
 
   useEffect(() => {
-    connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
+    let cancelled = false;
+    let currentWs: WebSocket | null = null;
 
-  return { send, disconnect };
+    const doConnect = () => {
+      if (cancelled) return;
+
+      const ws = new WebSocket(WS_URL);
+      currentWs = ws;
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (cancelled) { ws.close(); return; }
+        console.log('[WS] Connected');
+        setConnectionStatusRef.current('connected');
+
+        heartbeatIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping', data: {} }));
+          }
+        }, HEARTBEAT_INTERVAL);
+      };
+
+      ws.onmessage = (event) => {
+        if (cancelled) return;
+        try {
+          const msg = JSON.parse(event.data);
+          handleMessageRef.current(msg);
+        } catch (e) {
+          console.error('[WS] Failed to parse message:', e);
+        }
+      };
+
+      ws.onclose = () => {
+        clearInterval(heartbeatIntervalRef.current);
+
+        // Only handle close for the current connection, not stale ones
+        if (cancelled || ws !== currentWs) return;
+
+        console.log('[WS] Disconnected');
+        setConnectionStatusRef.current('disconnected');
+        wsRef.current = null;
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (cancelled) return;
+          console.log('[WS] Reconnecting...');
+          setConnectionStatusRef.current('reconnecting');
+          doConnect();
+        }, RECONNECT_DELAY);
+      };
+
+      ws.onerror = (error) => {
+        if (!cancelled) console.error('[WS] Error:', error);
+      };
+    };
+
+    doConnect();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(reconnectTimeoutRef.current);
+      clearInterval(heartbeatIntervalRef.current);
+      if (currentWs) {
+        currentWs.close();
+        currentWs = null;
+      }
+      wsRef.current = null;
+    };
+  }, []); // Empty deps — run once on mount, cleanup on unmount only
+
+  return { send };
 }

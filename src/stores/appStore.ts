@@ -14,9 +14,20 @@ export interface AIResponseState {
   elapsedMs: number | null;
 }
 
+export interface AIProviderInfo {
+  provider_id: string;
+  display_name: string;
+  enabled: boolean;
+  icon_color: string;
+  icon_emoji: string;
+}
+
 export interface AppState {
   // Connection
   connectionStatus: ConnectionStatus;
+
+  // Available providers from backend
+  aiList: AIProviderInfo[];
 
   // Auth status per AI
   authStatus: Record<string, { status: string; message: string }>;
@@ -61,6 +72,7 @@ const createInitialResponse = (): AIResponseState => ({
 export const useAppStore = create<AppState>((set, get) => ({
   // Initial values
   connectionStatus: 'disconnected',
+  aiList: [],
   authStatus: {},
   currentTaskId: null,
   query: '',
@@ -194,6 +206,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       case 'engine_status':
         console.log('[Engine] Status:', data);
+        break;
+
+      case 'ai_list':
+        set({ aiList: data as unknown as AIProviderInfo[] });
         break;
 
       case 'task_created':
