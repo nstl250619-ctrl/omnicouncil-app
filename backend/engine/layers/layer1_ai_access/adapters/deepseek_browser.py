@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..browser_adapter import BrowserAIAdapter
-from browser.engine import BrowserEngine
+
+if TYPE_CHECKING:
+    from browser.engine import BrowserEngine
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "deepseek.json"
 
@@ -65,6 +67,4 @@ class DeepSeekBrowserAdapter(BrowserAIAdapter):
         if text.startswith("New chat") or text.startswith("Today"):
             return True
         # Skip sidebar items
-        if len(text) < 3:
-            return True
-        return False
+        return len(text) < 3

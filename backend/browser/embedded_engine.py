@@ -3,37 +3,35 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
-import time
+import sys
 import traceback
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any
 
-from .engine import BrowserEngine, EngineMode, EngineStatus, AuthStatus, PageInfo
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import contextlib
 
-logger = logging.getLogger(__name__)
+from shared.logger import get_logger
 
-# Fixed debug log path (works regardless of Path.home() resolution)
-DEBUG_LOG = "C:\\Users\\green\\.omnicouncil\\login.log"
+from .engine import AuthStatus, BrowserEngine, EngineMode, EngineStatus, PageInfo
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+logger = get_logger(__name__)
 
 
 def _debug(msg: str):
-    """Write to both logger and fixed file path."""
+    """Log a debug message via the centralized logger."""
     logger.info(msg)
-    try:
-        os.makedirs(os.path.dirname(DEBUG_LOG), exist_ok=True)
-        with open(DEBUG_LOG, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%H:%M:%S')}] {msg}\n")
-    except Exception:
-        pass  # Never let logging crash the app
 
 
 class EmbeddedEngine(BrowserEngine):
     """Browser engine with per-AI persistent contexts."""
 
     def __init__(self, auth_dir: str | None = None, headless: bool = True):
-        self._auth_dir = auth_dir or "C:\\Users\\green\\.omnicouncil\\auth"
+        self._auth_dir = auth_dir or str(Path.home() / ".omnicouncil" / "auth")
         self._headless = headless
         self._playwright = None
         self._contexts: dict[str, Any] = {}
@@ -70,16 +68,12 @@ class EmbeddedEngine(BrowserEngine):
         for ai_id in list(self._pages.keys()):
             await self.close_page(ai_id)
         for ctx in self._contexts.values():
-            try:
+            with contextlib.suppress(Exception):
                 await ctx.close()
-            except Exception:
-                pass
         self._contexts.clear()
         if self._playwright:
-            try:
+            with contextlib.suppress(Exception):
                 await self._playwright.stop()
-            except Exception:
-                pass
             self._playwright = None
         self._connected = False
 
@@ -121,10 +115,8 @@ class EmbeddedEngine(BrowserEngine):
 
     async def close_page(self, ai_id: str) -> None:
         if ai_id in self._pages:
-            try:
+            with contextlib.suppress(Exception):
                 await self._pages[ai_id].close()
-            except Exception:
-                pass
             del self._pages[ai_id]
 
     async def check_auth(self, ai_id: str) -> AuthStatus:
@@ -151,10 +143,8 @@ class EmbeddedEngine(BrowserEngine):
 
         # Close existing context for this AI
         if ai_id in self._contexts:
-            try:
+            with contextlib.suppress(Exception):
                 await self._contexts[ai_id].close()
-            except Exception:
-                pass
             del self._contexts[ai_id]
             self._pages.pop(ai_id, None)
 
@@ -200,10 +190,8 @@ class EmbeddedEngine(BrowserEngine):
                     _debug(f"Failed to save storage state: {e}")
                 self._authenticated.add(ai_id)
                 _debug(f"LOGIN SUCCESSFUL for {ai_id} (already logged in)")
-                try:
+                with contextlib.suppress(Exception):
                     await browser.close()
-                except Exception:
-                    pass
                 return True, ""
 
             _debug("Not logged in, waiting for user to close browser...")
@@ -212,7 +200,7 @@ class EmbeddedEngine(BrowserEngine):
             try:
                 await asyncio.wait_for(page_closed.wait(), timeout=300)
                 _debug("Page closed by user")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _debug("Login timeout (5 minutes)")
                 return False, "登录超时（5分钟）"
 
@@ -293,7 +281,7 @@ class EmbeddedEngine(BrowserEngine):
                     if await textarea.count() > 0 and await textarea.first.is_visible(timeout=1000):
                         return True
 
-            elif ai_id == "qianwen":
+            elif ai_id == "qianwen":  # noqa: SIM102
                 # Qianwen: check for chat interface
                 if "login" not in url.lower() and "sign" not in url.lower():
                     textarea = page.locator("textarea, [contenteditable='true']")

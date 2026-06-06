@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from shared.types import SemanticUnit, SimilarityMatrix, UniqueInsight
-from shared.config import ComparisonConfig
+
+if TYPE_CHECKING:
+    from shared.config import ComparisonConfig
 
 
 class UniqueInsightExtractor:

@@ -8,13 +8,12 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
-
 
 # ========== Layer 1: AI Access Layer ==========
 
-class AIStatus(str, Enum):
+class AIStatus(StrEnum):
     INITIALIZING = "initializing"
     READY = "ready"
     BUSY = "busy"
@@ -25,7 +24,7 @@ class AIStatus(str, Enum):
     CIRCUIT_OPEN = "circuit_open"
 
 
-class CircuitState(str, Enum):
+class CircuitState(StrEnum):
     CLOSED = "closed"      # Normal operation
     OPEN = "open"          # Tripped, rejecting requests
     HALF_OPEN = "half_open"  # Testing recovery
@@ -77,12 +76,12 @@ class SubmitOptions:
 
 # ========== Layer 2: Scheduler ==========
 
-class TaskMode(str, Enum):
+class TaskMode(StrEnum):
     PARALLEL = "parallel"
     SEQUENTIAL = "sequential"
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     CREATED = "created"
     DISPATCHED = "dispatched"
     RUNNING = "running"
@@ -92,7 +91,7 @@ class TaskStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class SubTaskStatus(str, Enum):
+class SubTaskStatus(StrEnum):
     QUEUED = "queued"
     DISPATCHING = "dispatching"
     IN_PROGRESS = "in_progress"
@@ -143,7 +142,7 @@ class AIAvailability:
 
 # ========== Layer 3: Result Collection ==========
 
-class ResultStatus(str, Enum):
+class ResultStatus(StrEnum):
     SUCCESS = "success"
     ERROR = "error"
     TIMEOUT = "timeout"

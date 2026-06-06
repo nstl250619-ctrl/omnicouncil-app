@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..browser_adapter import BrowserAIAdapter
-from browser.engine import BrowserEngine
+
+if TYPE_CHECKING:
+    from browser.engine import BrowserEngine
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "qianwen.json"
 
@@ -66,7 +69,7 @@ class QianwenBrowserAdapter(BrowserAIAdapter):
             body = await page.locator("body").inner_text(timeout=3000)
             # Qianwen uses non-breaking spaces
             body = body.replace("\xa0", " ")
-            lines = [l.strip() for l in body.split("\n") if l.strip()]
+            lines = [line.strip() for line in body.split("\n") if line.strip()]
 
             # Find the user's prompt
             prompt_idx = None
@@ -106,6 +109,4 @@ class QianwenBrowserAdapter(BrowserAIAdapter):
         }
         if text in ui_elements:
             return True
-        if len(text) < 2:
-            return True
-        return False
+        return len(text) < 2

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from typing import TYPE_CHECKING
 
 from shared.types import DifferenceItem, SemanticUnit, SimilarityMatrix, generate_id
-from shared.config import ComparisonConfig
 
 from ..clustering.union_find import UnionFind
 
+if TYPE_CHECKING:
+    from shared.config import ComparisonConfig
 
 # Keyword patterns for difference type classification
 _TYPE_PATTERNS = {
@@ -51,7 +53,7 @@ class DifferenceAnalyzer:
         differences: list[DifferenceItem] = []
         components = uf.components()
 
-        for root, members in components.items():
+        for _root, members in components.items():
             if len(members) < 2:
                 continue
 

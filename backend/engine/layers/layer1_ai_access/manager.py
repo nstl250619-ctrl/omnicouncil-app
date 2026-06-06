@@ -7,22 +7,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
-from typing import Any
+from typing import TYPE_CHECKING
 
 from shared.event_bus import EventBus
 from shared.types import (
     AIResponse,
-    AIStatus,
     ProviderStatus,
     SubmitOptions,
 )
-from shared.errors import AIAdapterError, CircuitOpenError, RateLimitError
 
-from .adapter import AIAdapter
+from .managers.circuit_breaker import CircuitBreaker
 from .managers.provider_manager import ProviderManager
 from .managers.rate_limiter import RateLimiter
-from .managers.circuit_breaker import CircuitBreaker
+
+if TYPE_CHECKING:
+    from .adapter import AIAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +173,7 @@ class AIAccessManager:
         responses = await asyncio.gather(*coros, return_exceptions=True)
 
         results: dict[str, AIResponse] = {}
-        for ai_id, response in zip(ai_ids, responses):
+        for ai_id, response in zip(ai_ids, responses, strict=False):
             if isinstance(response, Exception):
                 logger.exception("Error in send_to_multiple for %s", ai_id)
                 results[ai_id] = AIResponse(

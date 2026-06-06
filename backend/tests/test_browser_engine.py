@@ -1,9 +1,10 @@
 """Tests for BrowserEngine abstraction layer."""
 
 import pytest
-from browser.engine import EngineMode, AuthStatus, EngineStatus, PageInfo
+
 from browser.cdp_engine import CDPEngine
 from browser.embedded_engine import EmbeddedEngine
+from browser.engine import AuthStatus, EngineMode, EngineStatus, PageInfo
 from browser.factory import create_engine
 
 

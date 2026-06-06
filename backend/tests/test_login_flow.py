@@ -9,8 +9,6 @@ These tests verify that:
 
 from __future__ import annotations
 
-import asyncio
-import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -18,7 +16,6 @@ from pathlib import Path
 import pytest
 
 from browser.embedded_engine import EmbeddedEngine
-from browser.engine import AuthStatus
 
 
 @pytest.fixture

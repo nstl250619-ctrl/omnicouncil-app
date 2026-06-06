@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from ..collector.response import AIResponse
-from ..comparison.result import ComparisonResult
-from ..conflict.result import ConflictResult
 from .result import ConsensusReport
+
+if TYPE_CHECKING:
+    from ..collector.response import AIResponse
+    from ..comparison.result import ComparisonResult
+    from ..conflict.result import ConflictResult
 
 logger = logging.getLogger(__name__)
 

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from shared.types import SemanticUnit, generate_id
 
-from .text_preprocessor import PreprocessedAI
+if TYPE_CHECKING:
+    from .text_preprocessor import PreprocessedAI
 
 DEFAULT_MAX_UNITS_PER_AI = 100
 

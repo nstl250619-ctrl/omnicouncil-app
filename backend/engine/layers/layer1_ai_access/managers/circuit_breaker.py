@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import time
-from typing import Callable
+from typing import TYPE_CHECKING
 
 from shared.types import CircuitState
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class CircuitBreaker:
@@ -39,9 +42,7 @@ class CircuitBreaker:
 
     def is_open(self) -> bool:
         """Pure check: is the circuit currently open? No side effects."""
-        if self._state == CircuitState.OPEN:
-            return True
-        return False
+        return self._state == CircuitState.OPEN
 
     def should_allow(self) -> bool:
         """Check if a request should be allowed. May trigger HALF_OPEN transition."""
@@ -66,9 +67,7 @@ class CircuitBreaker:
         self._consecutive_failures += 1
         self._last_failure_time = time.time()
 
-        if self._state == CircuitState.HALF_OPEN:
-            self._transition(CircuitState.OPEN)
-        elif self._consecutive_failures >= self._failure_threshold:
+        if self._state == CircuitState.HALF_OPEN or self._consecutive_failures >= self._failure_threshold:
             self._transition(CircuitState.OPEN)
 
     def _transition(self, new_state: CircuitState) -> None:

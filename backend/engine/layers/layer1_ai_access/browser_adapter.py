@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
+import contextlib
 import logging
 import re
 import time
 import uuid
-from pathlib import Path
 from typing import Any
 
-from shared.types import AIResponse, AIStatus, ProviderStatus, SubmitOptions
+from browser.engine import AuthStatus, BrowserEngine
 from shared.errors import AILoginRequiredError
+from shared.types import AIResponse, AIStatus, ProviderStatus, SubmitOptions
+
 from .adapter import AIAdapter
-from browser.engine import BrowserEngine, AuthStatus
 
 logger = logging.getLogger(__name__)
 
@@ -137,10 +136,8 @@ class BrowserAIAdapter(AIAdapter):
         input_box = await self._find_input(page)
         if input_box is None:
             body = ""
-            try:
+            with contextlib.suppress(Exception):
                 body = (await page.locator("body").inner_text(timeout=3000))[:200]
-            except Exception:
-                pass
             if "登录" in body or "login" in body.lower():
                 raise AILoginRequiredError(self.ai_id)
             raise RuntimeError(f"Could not find input box. Body: {body[:100]}")
@@ -181,7 +178,7 @@ class BrowserAIAdapter(AIAdapter):
         while time.time() < deadline:
             body = await page.locator("body").inner_text(timeout=3000)
             body = body.replace("\xa0", " ")
-            lines = [l.strip() for l in body.split("\n") if l.strip()]
+            lines = [line.strip() for line in body.split("\n") if line.strip()]
 
             # Find the user's prompt
             prompt_idx = None

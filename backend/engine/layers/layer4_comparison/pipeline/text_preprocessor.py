@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from shared.types import RoundContext, AiResult, ResultStatus
-from shared.config import ComparisonConfig
+from shared.types import ResultStatus, RoundContext
+
+if TYPE_CHECKING:
+    from shared.config import ComparisonConfig
 
 
 @dataclass(frozen=True)

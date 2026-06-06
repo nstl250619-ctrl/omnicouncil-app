@@ -7,10 +7,12 @@ Can be used as an optional enhancement on top of the rule-based V2-A/V2-B analys
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from ..consensus.result import ConsensusReport
 from .result import JudgeVerdict
+
+if TYPE_CHECKING:
+    from ..consensus.result import ConsensusReport
 
 logger = logging.getLogger(__name__)
 

@@ -6,25 +6,27 @@ import asyncio
 import logging
 import time
 import uuid
+from typing import TYPE_CHECKING
 
+from shared.errors import NoAvailableAIError, TaskValidationError
 from shared.event_bus import EventBus
 from shared.types import (
     AIAvailability,
+    AIStatus,
     QueryRequest,
+    SubmitOptions,
     TaskHandle,
+    TaskProgress,
     TaskStatus,
     TaskStatusInfo,
-    TaskProgress,
-    TaskMode,
-    AIStatus,
-    SubmitOptions,
 )
-from shared.errors import TaskValidationError, NoAvailableAIError
 
-from ..layer1_ai_access.manager import AIAccessManager
+from .concurrency_controller import ConcurrencyController
 from .retry_manager import RetryManager
 from .timeout_manager import TimeoutManager
-from .concurrency_controller import ConcurrencyController
+
+if TYPE_CHECKING:
+    from ..layer1_ai_access.manager import AIAccessManager
 
 logger = logging.getLogger(__name__)
 
@@ -277,7 +279,7 @@ class SchedulerCenter:
         now = time.time()
         to_remove = []
         for task_id, task in self._tasks.items():
-            if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+            if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):  # noqa: SIM102
                 if now - task.updated_at > max_age_seconds:
                     to_remove.append(task_id)
 

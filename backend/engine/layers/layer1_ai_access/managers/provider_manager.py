@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from shared.types import AIStatus, ProviderStatus
-
 if TYPE_CHECKING:
+    from shared.types import ProviderStatus
+
     from ..adapter import AIAdapter
 
 

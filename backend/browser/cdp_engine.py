@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-import json
+import contextlib
 import logging
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any
 
-from .engine import BrowserEngine, EngineMode, EngineStatus, AuthStatus, PageInfo
+from .engine import AuthStatus, BrowserEngine, EngineMode, EngineStatus, PageInfo
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -65,12 +68,7 @@ class CDPEngine(BrowserEngine):
         for ai_id in list(self._pages.keys()):
             await self.close_page(ai_id)
 
-        if self._browser:
-            try:
-                # Don't close the browser - it's the user's Chrome
-                pass
-            except Exception:
-                pass
+        # Don't close the browser - it's the user's Chrome
 
         self._browser = None
         self._context = None
@@ -125,10 +123,8 @@ class CDPEngine(BrowserEngine):
     async def close_page(self, ai_id: str) -> None:
         """Close a specific AI's page."""
         if ai_id in self._pages:
-            try:
+            with contextlib.suppress(Exception):
                 await self._pages[ai_id].close()
-            except Exception:
-                pass
             del self._pages[ai_id]
             logger.info("CDP: Closed page for %s", ai_id)
 

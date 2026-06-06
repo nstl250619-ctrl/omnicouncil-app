@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from .engine import BrowserEngine, EngineMode
 from .cdp_engine import CDPEngine
 from .embedded_engine import EmbeddedEngine
+from .engine import BrowserEngine, EngineMode
 
 logger = logging.getLogger(__name__)
 

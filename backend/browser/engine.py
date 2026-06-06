@@ -4,16 +4,19 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Callable
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
-class EngineMode(str, Enum):
+class EngineMode(StrEnum):
     CDP = "cdp"
     EMBEDDED = "embedded"
 
 
-class AuthStatus(str, Enum):
+class AuthStatus(StrEnum):
     AUTHENTICATED = "authenticated"
     EXPIRED = "expired"
     NOT_LOGGED_IN = "not_logged_in"

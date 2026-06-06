@@ -6,6 +6,7 @@ This is used by Layer 3 (ResultCollector) to standardize AI responses.
 from __future__ import annotations
 
 import re
+
 from shared.types import NormalizedResponse
 
 

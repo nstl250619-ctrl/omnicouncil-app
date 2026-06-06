@@ -5,22 +5,19 @@ from __future__ import annotations
 import logging
 import time
 
+from shared.config import ComparisonConfig
 from shared.event_bus import EventBus
 from shared.types import (
     ComparisonContext,
-    ComparisonMetrics,
     RoundContext,
-    generate_id,
 )
-from shared.config import ComparisonConfig
-from shared.errors import InsufficientResultsError
 
-from .pipeline.text_preprocessor import TextPreprocessor
+from .pipeline.comparison_assembler import ComparisonAssembler
+from .pipeline.difference_analyzer import DifferenceAnalyzer
 from .pipeline.semantic_unit_extractor import SemanticUnitExtractor
 from .pipeline.similarity_analyzer import SimilarityAnalyzer
-from .pipeline.difference_analyzer import DifferenceAnalyzer
+from .pipeline.text_preprocessor import TextPreprocessor
 from .pipeline.unique_insight_extractor import UniqueInsightExtractor
-from .pipeline.comparison_assembler import ComparisonAssembler
 
 logger = logging.getLogger(__name__)
 

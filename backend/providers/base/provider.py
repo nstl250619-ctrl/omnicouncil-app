@@ -61,11 +61,11 @@ class BaseProvider(ABC):
         """
         ...
 
-    async def on_login_start(self, page: Any) -> None:
+    async def on_login_start(self, page: Any) -> None:  # noqa: B027
         """Hook: called before navigating to login page."""
         pass
 
-    async def on_login_success(self, page: Any) -> None:
+    async def on_login_success(self, page: Any) -> None:  # noqa: B027
         """Hook: called after successful login."""
         pass
 

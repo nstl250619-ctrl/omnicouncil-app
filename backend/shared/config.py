@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import yaml
-from pathlib import Path
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 
 @dataclass(frozen=True)
@@ -62,7 +63,7 @@ def load_config(config_path: str | Path | None = None) -> AppConfig:
     if not config_path.exists():
         return AppConfig()
 
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         raw: dict[str, Any] = yaml.safe_load(f) or {}
 
     scheduler_raw = raw.get("scheduler", {})

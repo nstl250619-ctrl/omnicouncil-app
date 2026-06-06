@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from ..collector.response import AIResponse
-from ..comparison.result import ComparisonResult
 from .result import ConflictPoint, ConflictResult
+
+if TYPE_CHECKING:
+    from ..collector.response import AIResponse
+    from ..comparison.result import ComparisonResult
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +56,7 @@ class ConflictEngine:
                 ))
 
         # Calculate overall conflict level
-        if conflicts:
-            overall = sum(c.severity for c in conflicts) / len(conflicts)
-        else:
-            overall = 0.0
+        overall = sum(c.severity for c in conflicts) / len(conflicts) if conflicts else 0.0
 
         # Generate summary
         summary = self._generate_summary(conflicts, responses)

@@ -1,9 +1,8 @@
 """Tests for WebSocket communication."""
 
-import asyncio
-import json
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 
 @pytest.fixture
@@ -20,7 +19,7 @@ class TestConnectionManager:
 
     @pytest.mark.asyncio
     async def test_connect(self):
-        from main import ConnectionManager
+        from ws.connection import ConnectionManager
         manager = ConnectionManager()
         ws = AsyncMock()
 
@@ -30,7 +29,7 @@ class TestConnectionManager:
 
     @pytest.mark.asyncio
     async def test_disconnect(self):
-        from main import ConnectionManager
+        from ws.connection import ConnectionManager
         manager = ConnectionManager()
         ws = AsyncMock()
 
@@ -40,7 +39,7 @@ class TestConnectionManager:
 
     @pytest.mark.asyncio
     async def test_broadcast(self):
-        from main import ConnectionManager
+        from ws.connection import ConnectionManager
         manager = ConnectionManager()
         ws1 = AsyncMock()
         ws2 = AsyncMock()
@@ -56,7 +55,7 @@ class TestConnectionManager:
 
     @pytest.mark.asyncio
     async def test_send_personal(self):
-        from main import ConnectionManager
+        from ws.connection import ConnectionManager
         manager = ConnectionManager()
         ws = AsyncMock()
 
@@ -70,7 +69,7 @@ class TestGlobalExceptionHandler:
     """Test global exception handler."""
 
     def test_format_known_error(self):
-        from main import GlobalExceptionHandler, ConnectionManager
+        from ws.connection import ConnectionManager, GlobalExceptionHandler
         handler = GlobalExceptionHandler(ConnectionManager())
 
         result = handler._format(ConnectionError, ConnectionError("test"))
@@ -78,7 +77,7 @@ class TestGlobalExceptionHandler:
         assert result["recoverable"] is True
 
     def test_format_unknown_error(self):
-        from main import GlobalExceptionHandler, ConnectionManager
+        from ws.connection import ConnectionManager, GlobalExceptionHandler
         handler = GlobalExceptionHandler(ConnectionManager())
 
         result = handler._format(ValueError, ValueError("unknown"))

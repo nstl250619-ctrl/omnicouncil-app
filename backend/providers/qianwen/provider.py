@@ -60,7 +60,7 @@ class QianwenProvider(BaseProvider):
         while time.time() < deadline:
             body = await page.locator("body").inner_text(timeout=3000)
             body = body.replace("\xa0", " ")
-            lines = [l.strip() for l in body.split("\n") if l.strip()]
+            lines = [line.strip() for line in body.split("\n") if line.strip()]
 
             prompt_idx = None
             for i, line in enumerate(lines):

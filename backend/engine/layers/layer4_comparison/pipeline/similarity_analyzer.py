@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from shared.types import SemanticUnit, SimilarityMatrix
-from shared.config import ComparisonConfig
+from typing import TYPE_CHECKING
 
-from ..similarity.tfidf_calculator import TfidfCalculator
+from shared.types import SemanticUnit, SimilarityMatrix
+
 from ..similarity.cosine_similarity import cosine_similarity
 from ..similarity.lcs_calculator import lcs_ratio
+from ..similarity.tfidf_calculator import TfidfCalculator
+
+if TYPE_CHECKING:
+    from shared.config import ComparisonConfig
 
 
 class SimilarityAnalyzer:
