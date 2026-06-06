@@ -49,6 +49,7 @@ class ComparisonConfig:
 
 @dataclass(frozen=True)
 class AppConfig:
+    log_level: str = "INFO"
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
     comparison: ComparisonConfig = field(default_factory=ComparisonConfig)
     rate_limits: dict[str, RateLimitConfig] = field(default_factory=dict)
@@ -85,4 +86,11 @@ def load_config(config_path: str | Path | None = None) -> AppConfig:
     for ai_id, rl_raw in raw.get("rate_limits", {}).items():
         rate_limits[ai_id] = RateLimitConfig(**rl_raw)
 
-    return AppConfig(scheduler=scheduler, comparison=comparison, rate_limits=rate_limits)
+    return AppConfig(
+        log_level=raw.get("log_level", "INFO"),
+        scheduler=scheduler,
+        comparison=comparison,
+        rate_limits=rate_limits,
+        tracing_enabled=raw.get("tracing_enabled", False),
+        metrics_enabled=raw.get("metrics_enabled", False),
+    )

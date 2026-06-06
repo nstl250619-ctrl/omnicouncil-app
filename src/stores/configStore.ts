@@ -30,8 +30,10 @@ export interface ConfigState {
 
 const DEFAULT_AIS: AIConfig[] = [
   { aiId: 'deepseek', aiName: 'DeepSeek', enabled: true, status: 'disconnected' },
-  { aiId: 'gemini', aiName: 'Gemini', enabled: false, status: 'disconnected' },
   { aiId: 'qianwen', aiName: '千问', enabled: true, status: 'disconnected' },
+  { aiId: 'gemini', aiName: 'Gemini', enabled: false, status: 'disconnected' },
+  { aiId: 'chatgpt', aiName: 'ChatGPT', enabled: false, status: 'disconnected' },
+  { aiId: 'mimo', aiName: 'MiMo', enabled: false, status: 'disconnected' },
 ];
 
 export const useConfigStore = create<ConfigState>((set, get) => ({

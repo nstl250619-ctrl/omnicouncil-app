@@ -23,12 +23,16 @@ const AI_COLORS: Record<string, string> = {
   deepseek: '#4F8FFF',
   gemini: '#A78BFA',
   qianwen: '#F59E0B',
+  chatgpt: '#10A37F',
+  mimo: '#FF6B6B',
 };
 
 const AI_NAMES: Record<string, string> = {
   deepseek: 'DeepSeek',
   gemini: 'Gemini',
   qianwen: '千问',
+  chatgpt: 'ChatGPT',
+  mimo: 'MiMo',
 };
 
 function ResponseCard({ aiId, response, onRetry }: { aiId: string; response: AIResponseState; onRetry?: () => void }) {

@@ -85,6 +85,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         provider._engine = state.browser_engine
         await state.provider_runtime.register(provider)
     state.provider_registry = registry
+    # V1: exclude Claude — only ship DeepSeek, Qianwen, Gemini, ChatGPT, MiMo
+    state.provider_runtime.unregister("claude")
     logger.info("Providers: %s", state.provider_runtime.get_ids())
 
     # Initialize Layer 1: AI Access — register all providers as adapters

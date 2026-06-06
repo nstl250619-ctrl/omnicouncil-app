@@ -53,7 +53,7 @@ class EmbeddedEngine(BrowserEngine):
             self._connected = True
             _debug("Playwright connected")
 
-            for ai_id in ["deepseek", "qianwen", "gemini", "chatgpt", "claude"]:
+            for ai_id in ["deepseek", "qianwen", "gemini", "chatgpt", "mimo"]:
                 if self._has_saved_cookies(ai_id):
                     self._authenticated.add(ai_id)
                     _debug(f"Found saved session for {ai_id}")
@@ -335,7 +335,7 @@ class EmbeddedEngine(BrowserEngine):
     def check_all_sessions(self) -> dict[str, bool]:
         """Check which AIs have saved cookie sessions."""
         result = {}
-        for ai_id in ["deepseek", "qianwen", "gemini", "chatgpt", "claude"]:
+        for ai_id in ["deepseek", "qianwen", "gemini", "chatgpt", "mimo"]:
             result[ai_id] = self._has_saved_cookies(ai_id)
         return result
 

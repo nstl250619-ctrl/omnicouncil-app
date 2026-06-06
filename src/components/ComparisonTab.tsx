@@ -4,6 +4,8 @@ const AI_NAMES: Record<string, string> = {
   deepseek: 'DeepSeek',
   gemini: 'Gemini',
   qianwen: '千问',
+  chatgpt: 'ChatGPT',
+  mimo: 'MiMo',
 };
 
 function SimilarityBar({ aiA, aiB, similarity }: { aiA: string; aiB: string; similarity: number }) {
@@ -155,6 +157,8 @@ function getAIColor(aiId: string): string {
     deepseek: '#4f8fff',
     gemini: '#8b5cf6',
     qianwen: '#f59e0b',
+    chatgpt: '#10a37f',
+    mimo: '#ff6b6b',
   };
   return colors[aiId] || '#6366f1';
 }
