@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-import time
+import json
+from pathlib import Path
 from typing import Any
 
 from ..base import BaseProvider, ProviderConfig
+
+CONFIG_PATH = Path(__file__).parent.parent.parent / "engine" / "layers" / "layer1_ai_access" / "config" / "deepseek.json"
 
 
 class DeepSeekProvider(BaseProvider):
@@ -20,6 +23,30 @@ class DeepSeekProvider(BaseProvider):
             icon_emoji="🔮",
         )
 
+    async def _find_input(self, page: Any) -> Any:
+        """DeepSeek uses textarea or contenteditable."""
+        selectors = ["textarea", "div[contenteditable='true']"]
+        for sel in selectors:
+            try:
+                el = page.locator(sel).first
+                if await el.is_visible(timeout=2000):
+                    return el
+            except Exception:
+                continue
+        return None
+
+    def _is_ui_element(self, text: str) -> bool:
+        """DeepSeek-specific UI elements to skip."""
+        ui_elements = {
+            "DeepThink", "Search", "AI-generated, for reference only",
+            "Instant", "New chat", "Today", "深度思考", "联网搜索",
+        }
+        if text in ui_elements:
+            return True
+        if text.startswith("New chat") or text.startswith("Today"):
+            return True
+        return len(text) < 3
+
     async def check_login(self, page: Any) -> bool:
         url = page.url
         if "/sign_in" in url:
@@ -29,49 +56,3 @@ class DeepSeekProvider(BaseProvider):
             return await textarea.count() > 0 and await textarea.first.is_visible(timeout=2000)
         except Exception:
             return False
-
-    async def send_message(self, page: Any, message: str) -> str:
-        input_box = page.locator("textarea").first
-        await input_box.click()
-        await page.wait_for_timeout(300)
-        await input_box.fill(message)
-        await page.wait_for_timeout(500)
-        await page.keyboard.press("Enter")
-        await page.wait_for_timeout(2000)
-
-        last_response = ""
-        idle_start = None
-        deadline = time.time() + 120
-        ui_skip = {"DeepThink", "Search", "AI-generated, for reference only", "Instant", "New chat", "Today"}
-
-        while time.time() < deadline:
-            body = await page.locator("body").inner_text(timeout=3000)
-            lines = [line.strip() for line in body.split("\n") if line.strip()]
-
-            prompt_idx = None
-            for i, line in enumerate(lines):
-                if message in line:
-                    prompt_idx = i
-                    break
-
-            if prompt_idx is not None:
-                response_lines = []
-                for j in range(prompt_idx + 1, len(lines)):
-                    candidate = lines[j]
-                    if candidate in ui_skip or candidate in ("DeepThink", "Search"):
-                        break
-                    response_lines.append(candidate)
-                response_text = "\n".join(response_lines) if response_lines else ""
-
-                if response_text:
-                    if response_text != last_response:
-                        last_response = response_text
-                        idle_start = time.time()
-                    elif idle_start and (time.time() - idle_start) >= 3:
-                        return response_text
-
-            await page.wait_for_timeout(500)
-
-        if last_response:
-            return last_response
-        raise TimeoutError("DeepSeek response timed out")

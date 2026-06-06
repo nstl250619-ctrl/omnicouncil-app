@@ -37,8 +37,6 @@ from typing import TYPE_CHECKING
 from api.events import register_events
 from api.routes import register_routes
 from browser.factory import create_engine
-from engine.layers.layer1_ai_access.adapters.deepseek_browser import DeepSeekBrowserAdapter
-from engine.layers.layer1_ai_access.adapters.qianwen_browser import QianwenBrowserAdapter
 from engine.layers.layer1_ai_access.manager import AIAccessManager
 from engine.layers.layer2_scheduler.scheduler_center import SchedulerCenter
 from engine.layers.layer3_collector.result_collector import ResultCollector
@@ -81,12 +79,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     connected = await state.browser_engine.connect()
     logger.info("Browser engine: %s (connected=%s)", browser_mode, connected)
 
-    # Initialize Layer 1: AI Access with BrowserEngine
+    # Initialize Layer 1: AI Access — register all providers as adapters
     state.ai_manager = AIAccessManager(event_bus=state.event_bus)
-    deepseek = DeepSeekBrowserAdapter(state.browser_engine)
-    qianwen = QianwenBrowserAdapter(state.browser_engine)
-    state.ai_manager.register_adapter(deepseek)
-    state.ai_manager.register_adapter(qianwen)
+    for provider in state.provider_registry.get_all():
+        provider._engine = state.browser_engine
+        state.ai_manager.register_adapter(provider)
     await state.ai_manager.initialize()
 
     # Initialize Layer 2: Scheduler
@@ -109,6 +106,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Register event handlers (Engine → WebSocket)
     register_events(ws_manager)
 
+    # Install sidecar instrumentation (trace + metrics)
+    from shared.instrumentation import Instrumentation
+    from shared.metrics import MetricsCollector
+    from shared.trace import TraceStore
+    if config.tracing_enabled:
+        TraceStore.instance()
+    if config.metrics_enabled:
+        MetricsCollector.instance()
+    instrumentation = Instrumentation(
+        event_bus=state.event_bus,
+        tracing_enabled=config.tracing_enabled,
+        metrics_enabled=config.metrics_enabled,
+    )
+    instrumentation.install()
+
     # Install global exception handler
     exception_handler = GlobalExceptionHandler(ws_manager)
     exception_handler.install()
@@ -123,6 +135,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await state.browser_engine.disconnect()
     if state.ai_manager:
         await state.ai_manager.destroy()
+    TraceStore.reset()
+    MetricsCollector.reset()
     EventBus.reset()
     AppState.reset()
 

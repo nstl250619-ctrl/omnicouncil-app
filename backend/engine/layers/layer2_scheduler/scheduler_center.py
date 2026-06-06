@@ -149,6 +149,7 @@ class SchedulerCenter:
                 )
         finally:
             self._cancel_events.pop(task_id, None)
+            self.cleanup_old_tasks()
 
     async def _execute_task(self, task_id: str, query: str, ai_ids: list[str]) -> None:
         """Execute the task with concurrency/retry/timeout control."""

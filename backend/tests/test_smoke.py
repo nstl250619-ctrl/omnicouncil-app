@@ -55,7 +55,7 @@ class TestProviderImports:
     def test_base_provider(self):
         from providers.base.provider import BaseProvider
         assert hasattr(BaseProvider, "check_login")
-        assert hasattr(BaseProvider, "send_message")
+        assert hasattr(BaseProvider, "send_prompt")
 
     def test_registry(self):
         from providers.registry.registry import ProviderRegistry

@@ -49,7 +49,7 @@ class ResponseNormalizer:
         has_markdown = self._has_markdown(raw_text)
 
         # Word count
-        word_count = self._count_words(raw_text)
+        word_count = self.count_words(raw_text)
 
         return NormalizedResponse(
             main_text=raw_text.strip(),
@@ -96,7 +96,7 @@ class ResponseNormalizer:
         ]
         return any(pattern.search(text) for pattern in markdown_indicators)
 
-    def _count_words(self, text: str) -> int:
+    def count_words(self, text: str) -> int:
         """Count words (handles CJK characters as individual words)."""
         # Count CJK characters individually
         cjk_chars = len(self._CJK_RE.findall(text))

@@ -21,7 +21,7 @@ from .managers.provider_manager import ProviderManager
 from .managers.rate_limiter import RateLimiter
 
 if TYPE_CHECKING:
-    from .adapter import AIAdapter
+    from providers.base.provider import BaseProvider as AIAdapter
 
 logger = logging.getLogger(__name__)
 

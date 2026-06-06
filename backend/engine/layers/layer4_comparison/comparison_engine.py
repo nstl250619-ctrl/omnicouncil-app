@@ -35,7 +35,6 @@ class ComparisonEngine:
     ) -> None:
         self._config = config or ComparisonConfig()
         self._event_bus = event_bus or EventBus()
-        self._contexts: dict[str, ComparisonContext] = {}
 
         # Pipeline stages
         self._preprocessor = TextPreprocessor(self._config)
@@ -97,12 +96,7 @@ class ComparisonEngine:
             context.task_id, elapsed, len(units), len(differences), len(unique_insights),
         )
 
-        self._contexts[context.task_id] = comparison_ctx
         return comparison_ctx
-
-    def get_comparison_context(self, task_id: str) -> ComparisonContext | None:
-        """Get a previously computed ComparisonContext."""
-        return self._contexts.get(task_id)
 
     def on_analysis_completed(self, callback) -> None:
         """Register callback for analysis completion."""

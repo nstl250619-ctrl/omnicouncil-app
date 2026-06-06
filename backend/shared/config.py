@@ -52,6 +52,8 @@ class AppConfig:
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
     comparison: ComparisonConfig = field(default_factory=ComparisonConfig)
     rate_limits: dict[str, RateLimitConfig] = field(default_factory=dict)
+    tracing_enabled: bool = False
+    metrics_enabled: bool = False
 
 
 def load_config(config_path: str | Path | None = None) -> AppConfig:

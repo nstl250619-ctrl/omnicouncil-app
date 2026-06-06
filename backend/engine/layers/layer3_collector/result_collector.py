@@ -35,6 +35,8 @@ class ResultCollector:
         self._contexts: dict[str, RoundContext] = {}  # task_id -> RoundContext
         self._queries: dict[str, str] = {}  # task_id -> original query
         self._modes: dict[str, TaskMode] = {}  # task_id -> execution mode
+        self._completed_at: dict[str, float] = {}  # task_id -> completion timestamp
+        self._release_ttl_seconds: int = 60  # TTL before context release
 
         # Register event handlers
         self._event_bus.on("ai:task:completed", self._on_task_completed)
@@ -127,6 +129,7 @@ class ResultCollector:
         )
 
         self._contexts[task_id] = ctx
+        self._completed_at[task_id] = time.time()
 
         # Clean up temporary state
         self._pending.pop(task_id, None)
@@ -134,6 +137,9 @@ class ResultCollector:
 
         await self._event_bus.emit("collector:context:ready", context=ctx)
         logger.info("RoundContext assembled for task %s: %d results", task_id, len(results))
+
+        # Release completed contexts past TTL
+        self._cleanup_completed_contexts()
 
     def set_query(self, task_id: str, query: str, mode: TaskMode = TaskMode.PARALLEL) -> None:
         """Store the original query for a task (called by scheduler)."""
@@ -152,6 +158,22 @@ class ResultCollector:
         """Get partial results for a task (before all AIs complete)."""
         pending = self._pending.get(task_id, {})
         return list(pending.values())
+
+    def _cleanup_completed_contexts(self) -> None:
+        """Release contexts only after TTL has passed since completion."""
+        now = time.time()
+        to_delete = [
+            task_id
+            for task_id, completed_time in self._completed_at.items()
+            if now - completed_time > self._release_ttl_seconds
+        ]
+        for task_id in to_delete:
+            self._contexts.pop(task_id, None)
+            self._completed_at.pop(task_id, None)
+            self._queries.pop(task_id, None)
+            self._modes.pop(task_id, None)
+        if to_delete:
+            logger.info("Released %d completed contexts after TTL", len(to_delete))
 
     def on_context_ready(self, callback) -> None:
         """Register a callback for when RoundContext is ready."""
