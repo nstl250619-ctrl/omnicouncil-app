@@ -21,7 +21,6 @@ test.describe('二、Provider 管理测试', () => {
       body.includes('Gemini') ||
       body.includes('ChatGPT') ||
       body.includes('MiMo') ||
-      body.includes('Claude') ||
       body.includes('Provider') ||
       body.includes('AI') ||
       body.includes('平台')
@@ -34,7 +33,7 @@ test.describe('二、Provider 管理测试', () => {
     const body = await page.textContent('body');
 
     // Check for known AI providers
-    const providers = ['DeepSeek', 'Qianwen', 'Gemini', 'ChatGPT', 'MiMo', 'Claude'];
+    const providers = ['DeepSeek', 'Qianwen', 'Gemini', 'ChatGPT', 'MiMo'];
     const foundProviders = providers.filter(p =>
       body?.toLowerCase().includes(p.toLowerCase())
     );
