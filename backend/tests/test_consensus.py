@@ -6,8 +6,8 @@ import time
 
 import pytest
 
-from engine.consensus.engine import ConsensusEngine
-from engine.consensus.result import (
+from omnicounci1l_consensus import ConsensusEngine
+from omnicounci1l_consensus import (
     ConsensusPoint,
     ConsensusReport,
     DisagreementPoint,

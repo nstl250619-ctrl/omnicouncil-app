@@ -1,4 +1,20 @@
-"""EmbeddedEngine — per-AI persistent context browser engine."""
+"""EmbeddedEngine — DEPRECATED: use runtime.engine.AIRuntimeEngine instead.
+
+.. deprecated::
+    This class is superseded by the modular Runtime Engine architecture:
+    - ``runtime.engine.AIRuntimeEngine`` — unified engine
+    - ``runtime.profile_manager.ProfileManager`` — profile management
+    - ``runtime.session_validator.SessionValidator`` — session checks
+    - ``runtime.health_monitor.HealthMonitor`` — heartbeat
+    - ``runtime.recovery_engine.RecoveryEngine`` — auto-recovery
+
+    Key methods and their replacements:
+    - ``_has_valid_session()`` → ``runtime.session_validator.SessionValidator.validate_offline()``
+    - ``_watchdog_visible_windows()`` → ``runtime.health_monitor.HealthMonitor``
+    - ``login()`` → handled by AIRuntimeEngine boot flow
+    - ``get_page()`` → ``runtime.engine.AIRuntimeEngine.get_page()``
+    - ``check_auth()`` → ``runtime.session_validator.SessionValidator.validate_online()``
+"""
 
 from __future__ import annotations
 
@@ -7,6 +23,7 @@ import os
 import sys
 import time
 import traceback
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 

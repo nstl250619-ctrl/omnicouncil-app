@@ -13,13 +13,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from engine.consensus import ConsensusEngine
-    from engine.conflict import ConflictEngine
-    from engine.judge import JudgeEngine
+    from omnicounci1l_comparison import ComparisonEngine
+    from omnicounci1l_conflict import ConflictEngine
+    from omnicounci1l_consensus import ConsensusEngine
+    from omnicounci1l_judge import JudgeEngine
     from engine.layers.layer1_ai_access.manager import AIAccessManager
     from engine.layers.layer2_scheduler.scheduler_center import SchedulerCenter
     from engine.layers.layer3_collector.result_collector import ResultCollector
-    from engine.layers.layer4_comparison.comparison_engine import ComparisonEngine
     from providers.registry import ProviderRegistry
     from providers.runtime import ProviderRuntime
     from shared.event_bus import EventBus

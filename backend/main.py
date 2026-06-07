@@ -41,7 +41,7 @@ from browser.factory import create_engine
 from engine.layers.layer1_ai_access.manager import AIAccessManager
 from engine.layers.layer2_scheduler.scheduler_center import SchedulerCenter
 from engine.layers.layer3_collector.result_collector import ResultCollector
-from engine.layers.layer4_comparison.comparison_engine import ComparisonEngine
+from omnicounci1l_comparison import ComparisonEngine
 from providers.registry import create_default_registry
 from shared.app_state import AppState
 from shared.config import load_config
@@ -121,9 +121,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     state.comparison_engine = ComparisonEngine(config=config.comparison, event_bus=state.event_bus)
 
     # Initialize Layer 5: Consensus + Conflict + Judge
-    from engine.consensus import ConsensusEngine
-    from engine.conflict import ConflictEngine
-    from engine.judge import JudgeEngine
+    from omnicounci1l_consensus import ConsensusEngine
+    from omnicounci1l_conflict import ConflictEngine
+    from omnicounci1l_judge import JudgeEngine
     state.consensus_engine = ConsensusEngine(config=config.comparison)
     state.conflict_engine = ConflictEngine()
     state.judge_engine = JudgeEngine()

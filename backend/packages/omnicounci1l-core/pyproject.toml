@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "omnicounci1l-core"
+version = "1.0.0"
+description = "Shared types and configuration for OmniCouncil engines"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]

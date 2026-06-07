@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "omnicounci1l-conflict"
+version = "1.0.0"
+description = "Conflict analysis engine for OmniCouncil — analyzes why AI responses disagree"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "omnicounci1l-core>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]

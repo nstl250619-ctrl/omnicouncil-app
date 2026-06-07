@@ -15,13 +15,13 @@ from shared.types import (
     RoundContextSummary,
     TaskMode,
 )
-from engine.layers.layer4_comparison.comparison_engine import ComparisonEngine
-from engine.layers.layer4_comparison.pipeline.text_preprocessor import TextPreprocessor
-from engine.layers.layer4_comparison.pipeline.semantic_unit_extractor import SemanticUnitExtractor
-from engine.layers.layer4_comparison.pipeline.similarity_analyzer import SimilarityAnalyzer
-from engine.layers.layer4_comparison.pipeline.difference_analyzer import DifferenceAnalyzer
-from engine.layers.layer4_comparison.pipeline.unique_insight_extractor import UniqueInsightExtractor
-from engine.layers.layer4_comparison.pipeline.comparison_assembler import ComparisonAssembler
+from omnicounci1l_comparison import ComparisonEngine
+from omnicounci1l_comparison.pipeline.text_preprocessor import TextPreprocessor
+from omnicounci1l_comparison.pipeline.semantic_unit_extractor import SemanticUnitExtractor
+from omnicounci1l_comparison.pipeline.similarity_analyzer import SimilarityAnalyzer
+from omnicounci1l_comparison.pipeline.difference_analyzer import DifferenceAnalyzer
+from omnicounci1l_comparison.pipeline.unique_insight_extractor import UniqueInsightExtractor
+from omnicounci1l_comparison.pipeline.comparison_assembler import ComparisonAssembler
 
 
 def make_round_ctx(ai_texts=None):

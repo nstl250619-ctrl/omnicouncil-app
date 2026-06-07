@@ -6,10 +6,10 @@ import time
 
 import pytest
 
-from engine.conflict.engine import ConflictEngine
-from engine.conflict.result import ConflictPoint, ConflictPosition, ConflictResult
-from engine.judge.engine import JudgeEngine
-from engine.judge.result import JudgeVerdict
+from omnicounci1l_conflict import ConflictEngine
+from omnicounci1l_conflict import ConflictPoint, ConflictPosition, ConflictResult
+from omnicounci1l_judge import JudgeEngine
+from omnicounci1l_judge import JudgeVerdict
 from shared.types import (
     AiResult,
     ComparisonContext,
@@ -128,7 +128,7 @@ class TestJudgeEngine:
         ctx = make_round_ctx()
         comp = make_comparison_ctx()
 
-        from engine.consensus.result import ConsensusReport, ConsensusSummaryStats
+        from omnicounci1l_consensus import ConsensusReport, ConsensusSummaryStats
         consensus = ConsensusReport(
             task_id="t1", query="test", generated_at=time.time(),
             conclusion="test", confidence=0.8,

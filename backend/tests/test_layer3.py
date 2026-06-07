@@ -17,11 +17,11 @@ from shared.types import (
     TaskMode,
 )
 from engine.layers.layer3_collector.result_collector import ResultCollector
-from engine.layers.layer4_comparison.comparison_engine import ComparisonEngine
-from engine.layers.layer4_comparison.similarity.cosine_similarity import cosine_similarity
-from engine.layers.layer4_comparison.similarity.lcs_calculator import lcs_ratio
-from engine.layers.layer4_comparison.similarity.tfidf_calculator import TfidfCalculator
-from engine.layers.layer4_comparison.clustering.union_find import UnionFind
+from omnicounci1l_comparison import ComparisonEngine
+from omnicounci1l_comparison.similarity.cosine_similarity import cosine_similarity
+from omnicounci1l_comparison.similarity.lcs_calculator import lcs_ratio
+from omnicounci1l_comparison.similarity.tfidf_calculator import TfidfCalculator
+from omnicounci1l_comparison.clustering.union_find import UnionFind
 from shared.config import ComparisonConfig
 
 

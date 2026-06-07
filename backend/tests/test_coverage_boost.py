@@ -128,7 +128,7 @@ class TestDifferenceAnalyzerFull:
     """Tests for engine/layers/layer4_comparison/pipeline/difference_analyzer.py."""
 
     def test_detect_with_clusters(self):
-        from engine.layers.layer4_comparison.pipeline.difference_analyzer import DifferenceAnalyzer
+        from omnicounci1l_comparison.pipeline.difference_analyzer import DifferenceAnalyzer
         from shared.config import ComparisonConfig
         from shared.types import SemanticUnit, SimilarityMatrix
 
@@ -157,7 +157,7 @@ class TestDifferenceAnalyzerFull:
         assert isinstance(differences, list)
 
     def test_extract_dimension(self):
-        from engine.layers.layer4_comparison.pipeline.difference_analyzer import DifferenceAnalyzer
+        from omnicounci1l_comparison.pipeline.difference_analyzer import DifferenceAnalyzer
         from shared.config import ComparisonConfig
 
         analyzer = DifferenceAnalyzer(ComparisonConfig())
@@ -166,7 +166,7 @@ class TestDifferenceAnalyzerFull:
         assert len(dim) > 0
 
     def test_classify_type(self):
-        from engine.layers.layer4_comparison.pipeline.difference_analyzer import DifferenceAnalyzer
+        from omnicounci1l_comparison.pipeline.difference_analyzer import DifferenceAnalyzer
         from shared.config import ComparisonConfig
 
         analyzer = DifferenceAnalyzer(ComparisonConfig())

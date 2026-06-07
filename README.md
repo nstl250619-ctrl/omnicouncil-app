@@ -6,36 +6,69 @@ OmniCouncil 是一个能够让多个AI并行思考、交叉验证、自动提炼
 
 ## 架构
 
+### V2 架构（Runtime Engine + Query Engine 分离）
+
 ```
-┌─────────────────────────────────────────────┐
-│                OmniCouncil.exe               │
-│                                              │
-│  ┌──────────────────────┐                    │
-│  │    Tauri 壳 (Rust)    │  窗口管理          │
-│  └──────────┬───────────┘                    │
-│             │                                │
-│  ┌──────────▼───────────────────────────┐    │
-│  │   Python 后端 (FastAPI + WebSocket)   │    │
-│  │   ┌───────┐ ┌───────┐ ┌───────┐     │    │
-│  │   │ 第1层 │→│ 第2层 │→│ 第3层 │     │    │
-│  │   │AI接入 │ │ 调度  │ │ 收集  │     │    │
-│  │   └───────┘ └───────┘ └───┬───┘     │    │
-│  │                     ┌───────┐        │    │
-│  │                     │ 第4层 │        │    │
-│  │                     │ 对比  │        │    │
-│  │                     └───────┘        │    │
-│  │   ┌───────────────────────────┐      │    │
-│  │   │  BrowserEngine            │      │    │
-│  │   │  CDP / 内嵌 Chromium      │      │    │
-│  │   └───────────────────────────┘      │    │
-│  └──────────────────────────────────────┘    │
-│                                              │
-│  ┌──────────────────────────────────────┐    │
-│  │  前端 (React + TypeScript + Zustand)  │    │
-│  │  WebSocket 实时通信                   │    │
-│  └──────────────────────────────────────┘    │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                        OmniCouncil.exe                       │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │              Python 后端 (FastAPI + WebSocket)          │  │
+│  │                                                        │  │
+│  │  ┌─────────────────────────────────────────────────┐   │  │
+│  │  │              Runtime Engine (左手)               │   │  │
+│  │  │  确保页面就绪、登录有效、健康在线、自动恢复       │   │  │
+│  │  │                                                 │   │  │
+│  │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐       │   │  │
+│  │  │  │ 状态机   │ │ Profile  │ │ Session  │       │   │  │
+│  │  │  │ 10状态   │ │ Manager  │ │ Validator│       │   │  │
+│  │  │  └──────────┘ └──────────┘ └──────────┘       │   │  │
+│  │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐       │   │  │
+│  │  │  │ Health   │ │ Recovery │ │ Registry │       │   │  │
+│  │  │  │ Monitor  │ │ Engine   │ │          │       │   │  │
+│  │  │  └──────────┘ └──────────┘ └──────────┘       │   │  │
+│  │  └─────────────────────────────────────────────────┘   │  │
+│  │                          │ ensure_ready() → Page        │  │
+│  │                          ▼                              │  │
+│  │  ┌─────────────────────────────────────────────────┐   │  │
+│  │  │              Query Engine (右手)                 │   │  │
+│  │  │  在就绪的 Page 上发送问题、等待回复、提取结果     │   │  │
+│  │  │                                                 │   │  │
+│  │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐       │   │  │
+│  │  │  │ Base     │ │ DeepSeek │ │ ChatGPT  │ ...   │   │  │
+│  │  │  │ Adapter  │ │ Adapter  │ │ Adapter  │       │   │  │
+│  │  │  └──────────┘ └──────────┘ └──────────┘       │   │  │
+│  │  └─────────────────────────────────────────────────┘   │  │
+│  │                                                        │  │
+│  │  ┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐   │  │
+│  │  │ 调度  │→│ AI    │→│ 收集  │→│ 对比  │→│ 共识  │   │  │
+│  │  │ 中心  │ │ 接入  │ │ 中心  │ │ 分析  │ │ 引擎  │   │  │
+│  │  └───────┘ └───────┘ └───────┘ └───────┘ └───────┘   │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                              │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │           前端 (React + TypeScript + Zustand)           │  │
+│  │           WebSocket 实时通信                            │  │
+│  └────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+### 核心设计原则
+
+- **Runtime Engine（左手）**：负责"把 AI 网页变成稳定、可调用的运行时资源"
+  - 10 状态生命周期状态机
+  - Profile 备份/恢复
+  - Session 离线+在线验证
+  - 后台心跳健康监控
+  - 4 级自动恢复链（reload → renavigate → new_tab → restart_browser）
+
+- **Query Engine（右手）**：负责"向就绪的页面发送请求并拿回结果"
+  - 纯发送/等待/提取逻辑
+  - 不持有浏览器引用，Page 由外部传入
+  - 每个平台独立适配器
+  - 停止按钮检测 + 内容稳定性判断
+
+- **唯一契约**：一个已登录、可交互的 `Page` 对象
 
 ## 技术栈
 
@@ -84,8 +117,11 @@ npm run tauri dev
 ## 测试
 
 ```bash
-# 后端测试
-cd backend && python -m pytest tests/ -v
+# 后端测试 (345 新测试 + 既有测试)
+cd backend && python -m pytest tests/test_state_machine.py tests/test_profile_manager.py tests/test_session_validator.py tests/test_health_monitor.py tests/test_recovery_engine.py tests/test_runtime_engine.py tests/test_query_adapter.py tests/test_query_adapter_coverage.py tests/test_integration_v2.py tests/test_contracts.py tests/test_stress.py -v
+
+# 带覆盖率
+cd backend && python -m pytest tests/ --cov=runtime --cov=engine.contracts --cov-report=html
 
 # E2E 测试（需要后端运行）
 python scripts/test-e2e.py --port 8765
@@ -105,11 +141,39 @@ omnicouncil-app/
 │   ├── hooks/              # WebSocket hook
 │   └── styles/             # CSS 样式
 ├── backend/                # Python 后端
-│   ├── main.py             # FastAPI + WebSocket
-│   ├── engine/             # 核心引擎 (第1-4层)
-│   ├── browser/            # 浏览器引擎抽象
-│   ├── shared/             # 共享类型/配置
-│   └── tests/              # 测试
+│   ├── main.py             # 旧入口 (向后兼容)
+│   ├── main_v2.py          # 新入口 (Runtime + Query Engine)
+│   ├── engine/             # 引擎层
+│   │   ├── contracts.py    # 接口契约 (Protocol/ABC/枚举/异常)
+│   │   ├── layers/         # 第1-4层 (接入/调度/收集/对比)
+│   │   ├── consensus/      # 共识引擎
+│   │   ├── conflict/       # 冲突引擎
+│   │   └── judge/          # 判断引擎
+│   ├── runtime/            # Runtime Engine (新)
+│   │   ├── engine.py       # AIRuntimeEngine 主类
+│   │   ├── state_machine.py # 10 状态生命周期
+│   │   ├── profile_manager.py # Profile 备份/恢复
+│   │   ├── session_validator.py # Session 验证
+│   │   ├── health_monitor.py # 后台心跳
+│   │   ├── recovery_engine.py # 自动恢复编排
+│   │   ├── recovery_strategies.py # 4 级恢复策略
+│   │   └── registry.py     # RuntimeRegistry
+│   ├── providers/          # Query Engine (新)
+│   │   ├── base/
+│   │   │   ├── provider.py # 旧 BaseProvider (向后兼容)
+│   │   │   └── query_adapter.py # 新 BaseQueryAdapter
+│   │   ├── deepseek/       # DeepSeek 适配器
+│   │   ├── chatgpt/        # ChatGPT 适配器
+│   │   ├── gemini/         # Gemini 适配器
+│   │   ├── qianwen/        # 千问适配器
+│   │   ├── mimo/           # MiMo 适配器
+│   │   └── vision_fallback.py # 截图+OCR 兜底
+│   ├── browser/            # 旧浏览器引擎 (向后兼容)
+│   ├── shared/             # 共享类型/配置/日志
+│   ├── storage/            # 本地存储
+│   ├── ws/                 # WebSocket 管理
+│   ├── config/             # 配置文件
+│   └── tests/              # 测试 (345+ 用例)
 ├── scripts/                # 构建/测试脚本
 └── BUILD.md                # 构建说明
 ```
@@ -118,15 +182,33 @@ omnicouncil-app/
 
 | 功能 | 状态 |
 |------|------|
-| AI 接入层 | ✅ DeepSeek + 千问 |
+| **Runtime Engine** | |
+| 10 状态生命周期状态机 | ✅ |
+| Profile 备份/恢复/健康检查 | ✅ |
+| Session 离线+在线验证 | ✅ |
+| 后台心跳健康监控 | ✅ |
+| 4 级自动恢复链 | ✅ |
+| RuntimeRegistry 平台注册 | ✅ |
+| **Query Engine** | |
+| BaseQueryAdapter 统一接口 | ✅ |
+| DeepSeek / ChatGPT / Gemini / 千问 / MiMo 适配器 | ✅ |
+| 停止按钮检测 + 内容稳定性判断 | ✅ |
+| VisionFallback 截图+OCR 兜底 | ✅ |
+| **业务引擎** | |
+| AI 接入层 | ✅ DeepSeek + 千问 + Gemini + ChatGPT + MiMo |
 | 调度中心 | ✅ 并行/序贯分发 |
 | 结果收集 | ✅ 自动收集 + 标准化 |
 | 对比分析 | ✅ 相似度/差异/独观点 |
 | 共识分析 | ⏳ P1 |
 | 冲突分析 | ⏳ P1 |
+| **前端/桌面** | |
 | 首次启动向导 | ✅ CDP/内嵌模式选择 |
 | 设置页面 | ✅ AI管理/引擎配置 |
 | EXE 打包 | ✅ Tauri + Python sidecar |
+| **测试** | |
+| 单元测试 | ✅ 345 用例全部通过 |
+| 核心模块覆盖率 | ✅ 88% |
+| 压力测试 | ✅ 心跳/恢复/并发 |
 
 ## 设计文档
 

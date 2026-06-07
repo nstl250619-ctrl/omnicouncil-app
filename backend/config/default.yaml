@@ -1,5 +1,43 @@
 # OmniCouncil Default Configuration
 
+# ========== Runtime Engine Configuration ==========
+runtime:
+  # Heartbeat interval for health monitoring (seconds)
+  heartbeat_interval_s: 60
+  # Maximum consecutive recovery attempts before UNAVAILABLE
+  max_recovery_attempts: 3
+  # Cooldown between recovery rounds (seconds)
+  recovery_cooldown_s: 30
+  # Session check mode: "offline" | "online" | "offline_then_online"
+  session_check_mode: "offline_then_online"
+  # Page eviction thresholds
+  page_max_age_s: 600        # 10 minutes
+  page_max_idle_s: 120       # 2 minutes
+  # Watchdog interval for visible windows like ChatGPT (seconds)
+  watchdog_interval_s: 30
+  # Profile directory (default: ~/.omnicouncil/auth)
+  profile_dir: null
+  # Backup retention per platform
+  max_backups: 3
+
+  # Per-platform overrides
+  platforms:
+    deepseek:
+      home_url: "https://chat.deepseek.com"
+      headless: true
+    qianwen:
+      home_url: "https://www.qianwen.com/qianwen"
+      headless: true
+    gemini:
+      home_url: "https://gemini.google.com/app"
+      headless: true
+    chatgpt:
+      home_url: "https://chatgpt.com"
+      headless: false  # ChatGPT needs non-headless for Cloudflare
+    mimo:
+      home_url: "https://aistudio.xiaomimimo.com/#/"
+      headless: true
+
 scheduler:
   max_concurrent_tasks: 3
   ai_min_interval_ms: 1000

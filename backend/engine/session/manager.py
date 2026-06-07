@@ -1,13 +1,22 @@
-"""SessionManager — background heartbeat for AI provider authentication.
+"""SessionManager — DEPRECATED: use runtime.health_monitor.HealthMonitor instead.
 
-Runs a periodic check against every registered provider to detect session
-expiry *before* the user submits a query, so the frontend can surface
-actionable warnings ("千问 需要重新登录") rather than failing silently.
+.. deprecated::
+    This module is superseded by ``runtime.health_monitor.HealthMonitor``
+    which unifies heartbeat, session validation, and health reporting.
+    It will be removed in a future version.
 """
 
 from __future__ import annotations
 
 import asyncio
+import warnings
+
+warnings.warn(
+    "engine.session.manager.SessionManager is deprecated; "
+    "use runtime.health_monitor.HealthMonitor instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 import logging
 from typing import TYPE_CHECKING
 

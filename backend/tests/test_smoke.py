@@ -96,7 +96,7 @@ class TestEngineLayerImports:
         assert hasattr(ResultCollector, "__init__")
 
     def test_layer4_comparison(self):
-        from engine.layers.layer4_comparison.comparison_engine import ComparisonEngine
+        from omnicounci1l_comparison import ComparisonEngine
         assert hasattr(ComparisonEngine, "analyze")
 
 

@@ -1,6 +1,15 @@
-"""ProviderHealthMonitor — health check and monitoring."""
+"""ProviderHealthMonitor — DEPRECATED: use runtime.health_monitor.HealthMonitor instead.
+
+.. deprecated::
+    Superseded by ``runtime.health_monitor.HealthMonitor``.
+"""
 
 from __future__ import annotations
+import warnings
+warnings.warn(
+    "providers.health_monitor is deprecated; use runtime.health_monitor instead.",
+    DeprecationWarning, stacklevel=2,
+)
 
 import logging
 import time
