@@ -24,12 +24,16 @@ export async function navigateToConsole(page: Page): Promise<void> {
           (store as { getState: () => { completeSetup: (mode: string) => void } }).getState().completeSetup('embedded');
         }
       });
-      await page.waitForTimeout(1000);
     } else {
       await enterButton.click();
-      await page.waitForTimeout(2000);
     }
+    // Wait for console to render after setup bypass
+    await page.waitForTimeout(2000);
   }
+
+  // Wait for the console page to be ready (look for console-specific elements)
+  await page.locator('button, [class*="tab"], [class*="query"], input, textarea').first()
+    .waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
 
   // Wait for the app to fully settle
   await page.waitForLoadState('networkidle').catch(() => {});

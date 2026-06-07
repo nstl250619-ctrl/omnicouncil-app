@@ -3,6 +3,24 @@
   "productName": "OmniCouncil",
   "version": "0.1.0",
   "identifier": "com.omnicouncil.app",
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "app"],
+    "icon": [
+      "icons/icon-32.png",
+      "icons/icon-128.png",
+      "icons/icon-256.png",
+      "icons/icon-512.png",
+      "icons/icon-1024.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "both"
+      }
+    }
+  },
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
