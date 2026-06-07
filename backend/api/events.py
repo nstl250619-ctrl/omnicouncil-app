@@ -51,6 +51,11 @@ def register_events(ws_manager) -> None:
         asyncio.create_task(on_all_completed(context.task_id))
     event_bus.on("collector:context:ready", _on_context_ready)
 
+    # Health / session events
+    event_bus.on("health:session_expired", on_session_expired)
+    event_bus.on("health:recovery_success", on_recovery_success)
+    event_bus.on("health:ai_unavailable", on_ai_unavailable)
+
 
 # ========== Event Handlers ==========
 
@@ -331,3 +336,30 @@ async def on_all_completed(task_id: str, **kwargs):
     }
     if storage:
         storage.save_session(session_data)
+
+
+# ========== Health / Session Event Handlers ==========
+
+
+async def on_session_expired(ai_id: str, **kwargs):
+    """Broadcast session_expired event when an AI's session expires."""
+    await _ws_manager.broadcast({
+        "type": "session_expired",
+        "data": {"ai_id": ai_id, "message": f"{ai_id} 登录已过期"},
+    })
+
+
+async def on_recovery_success(ai_id: str, **kwargs):
+    """Broadcast recovery_success event when an AI recovers."""
+    await _ws_manager.broadcast({
+        "type": "recovery_success",
+        "data": {"ai_id": ai_id, "message": f"{ai_id} 已自动恢复"},
+    })
+
+
+async def on_ai_unavailable(ai_id: str, error: str = "", **kwargs):
+    """Broadcast ai_unavailable event when an AI becomes unavailable."""
+    await _ws_manager.broadcast({
+        "type": "ai_unavailable",
+        "data": {"ai_id": ai_id, "error": error, "message": f"{ai_id} 不可用"},
+    })

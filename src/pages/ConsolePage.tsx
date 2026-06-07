@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { useAppStore, TabId } from '../stores/appStore';
+import { useAppStore, TabId, type RuntimeHealth } from '../stores/appStore';
 import { useWebSocket } from '../hooks/useWebSocket';
 import Titlebar from '../components/Titlebar';
 import { AIIconSelector } from '../components/AIIconSelector';
@@ -64,14 +64,19 @@ export function ConsolePage({ onNavigateToPlatforms }: ConsolePageProps) {
     ];
   }, [aiList]);
 
-  // Platform status for sidebar
+  // Platform status for sidebar (from runtime health)
+  const runtimeHealthMap = useAppStore((s) => s.runtimeHealthMap);
   const platformStatuses = useMemo(() => {
-    return availableAIs.map((ai) => ({
-      id: ai.id,
-      name: ai.name,
-      status: ai.connected ? 'connected' : 'disconnected',
-    }));
-  }, [availableAIs]);
+    return availableAIs.map((ai) => {
+      const rh = runtimeHealthMap[ai.id];
+      const state = rh?.state ?? 'unknown';
+      return {
+        id: ai.id,
+        name: ai.name,
+        status: state === 'healthy' ? 'connected' : state === 'degraded' ? 'idle' : 'disconnected',
+      };
+    });
+  }, [availableAIs, runtimeHealthMap]);
 
   const toggleAI = useCallback((id: string) => {
     setSelectedAIs((prev) =>

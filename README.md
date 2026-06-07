@@ -94,10 +94,18 @@ pip install -r requirements.txt
 python main.py --port 8765
 ```
 
-### 启动前端
+### 启动前端（开发模式，热更新）
 ```bash
 npm install
 npm run dev
+# 浏览器打开 http://localhost:5173
+```
+
+### 启动前端（独立部署，生产构建）
+```bash
+npm run build
+npx serve dist
+# 浏览器打开 http://localhost:3000
 ```
 
 ### 启动 Tauri（需要 Rust）
@@ -182,33 +190,92 @@ omnicouncil-app/
 
 | 功能 | 状态 |
 |------|------|
-| **Runtime Engine** | |
+| **Runtime Engine** |
 | 10 状态生命周期状态机 | ✅ |
 | Profile 备份/恢复/健康检查 | ✅ |
 | Session 离线+在线验证 | ✅ |
 | 后台心跳健康监控 | ✅ |
 | 4 级自动恢复链 | ✅ |
 | RuntimeRegistry 平台注册 | ✅ |
-| **Query Engine** | |
+| **Query Engine** |
 | BaseQueryAdapter 统一接口 | ✅ |
 | DeepSeek / ChatGPT / Gemini / 千问 / MiMo 适配器 | ✅ |
 | 停止按钮检测 + 内容稳定性判断 | ✅ |
 | VisionFallback 截图+OCR 兜底 | ✅ |
-| **业务引擎** | |
+| **业务引擎** |
 | AI 接入层 | ✅ DeepSeek + 千问 + Gemini + ChatGPT + MiMo |
 | 调度中心 | ✅ 并行/序贯分发 |
 | 结果收集 | ✅ 自动收集 + 标准化 |
 | 对比分析 | ✅ 相似度/差异/独观点 |
 | 共识分析 | ⏳ P1 |
 | 冲突分析 | ⏳ P1 |
-| **前端/桌面** | |
+| **前端/桌面** |
 | 首次启动向导 | ✅ CDP/内嵌模式选择 |
 | 设置页面 | ✅ AI管理/引擎配置 |
 | EXE 打包 | ✅ Tauri + Python sidecar |
-| **测试** | |
+| **测试** |
 | 单元测试 | ✅ 345 用例全部通过 |
 | 核心模块覆盖率 | ✅ 88% |
 | 压力测试 | ✅ 心跳/恢复/并发 |
+
+## 前端独立开发/构建/部署
+
+前端（`src/` 目录）可独立于 Tauri 壳开发和部署，仅需后端 API 服务。
+
+### 独立开发（热更新）
+```bash
+cd omnicouncil-app
+npm install
+npm run dev
+# 浏览器打开 http://localhost:5173
+# 后端需在 http://127.0.0.1:8765 运行
+```
+
+### 独立构建
+```bash
+npm run build
+# 输出到 dist/
+# dist/index.html + dist/assets/*.js + dist/assets/*.css
+```
+
+### 独立部署（静态服务器）
+```bash
+# 使用 serve
+npx serve dist
+
+# 或使用任何静态服务器
+python3 -m http.server 8080 -d dist
+```
+
+### 前端-后端 API 接口
+
+前端通过以下 HTTP + WebSocket 接口与后端通信：
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `ws://127.0.0.1:8765/ws` | WebSocket | 任务提交、状态推送、流式回复 |
+| `/api/runtime/health` | GET | 所有 AI 的 RuntimeHealth（含状态灯） |
+| `/api/providers/{name}/reauth` | POST | 手动触发重认证/恢复 |
+| `/api/providers/{name}` | DELETE | 删除平台 |
+| `/api/providers` | POST | 添加新平台（stub） |
+| `/health` | GET | 后端基础健康检查 |
+
+**WebSocket 事件**（前端自动监听）：
+
+| 事件 | 触发时机 | UI 效果 |
+|------|----------|---------|
+| `session_expired` | AI 登录过期 | 黄色 toast + 状态灯变红 |
+| `recovery_success` | 自动恢复成功 | 绿色 toast + 状态灯变绿 |
+| `ai_unavailable` | AI 不可用 | 红色 toast + 状态灯变红 |
+
+### 状态灯颜色说明
+
+| 状态 | 颜色 | 含义 |
+|------|------|------|
+| `healthy` | 🟢 绿色 | 正常运行 |
+| `degraded` | 🟡 黄色 | 部分异常（可恢复） |
+| `login_required` | 🔴 红色 | 需要重新登录 |
+| `unavailable` | 🔴 红色 | 不可用 |
 
 ## 设计文档
 

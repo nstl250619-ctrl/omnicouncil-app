@@ -1438,6 +1438,21 @@ body::before {
   color: var(--text-secondary);
 }
 
+/* Toast severity variants */
+.toast-warning {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: var(--amber);
+}
+.toast-warning .error-toast-message { color: var(--amber); }
+.toast-warning .error-toast-btn.retry { background: var(--amber); }
+
+.toast-success {
+  background: rgba(62, 207, 142, 0.1);
+  border-color: var(--green);
+}
+.toast-success .error-toast-message { color: var(--green); }
+.toast-success .error-toast-btn.retry { background: var(--green); }
+
 /* ========================================
    AI Platform Manager
    ======================================== */

@@ -6,6 +6,14 @@ export type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
 export type AIStatus = 'idle' | 'waiting' | 'streaming' | 'completed' | 'error';
 export type TabId = 'responses' | 'comparison' | 'consensus' | 'conflict' | 'judge' | 'review' | 'debate' | 'history';
 
+export interface RuntimeHealth {
+  state: 'healthy' | 'degraded' | 'unavailable' | 'login_required';
+  browser_alive: boolean;
+  page_alive: boolean;
+  session_valid: boolean;
+  last_heartbeat: number;
+}
+
 export interface AIResponseState {
   status: AIStatus;
   content: string;
@@ -32,6 +40,9 @@ export interface AppState {
   // Auth status per AI
   authStatus: Record<string, { status: string; message: string }>;
 
+  // Runtime health per AI (from /api/runtime/health)
+  runtimeHealthMap: Record<string, RuntimeHealth>;
+
   // Current task
   currentTaskId: string | null;
   query: string;
@@ -55,6 +66,8 @@ export interface AppState {
   setActiveTab: (tab: TabId) => void;
   handleMessage: (msg: { type: string; data: Record<string, unknown> }) => void;
   resetResponses: () => void;
+  updateRuntimeHealth: (aiId: string, health: RuntimeHealth) => void;
+  setRuntimeHealthMap: (healthMap: Record<string, RuntimeHealth>) => void;
 }
 
 // ========== Initial State ==========
@@ -74,6 +87,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   connectionStatus: 'disconnected',
   aiList: [],
   authStatus: {},
+  runtimeHealthMap: {},
   currentTaskId: null,
   query: '',
   selectedAIs: ['deepseek', 'qianwen'],
@@ -115,6 +129,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ currentTaskId: null });
   },
 
+  updateRuntimeHealth: (aiId, health) => {
+    set((state) => ({
+      runtimeHealthMap: {
+        ...state.runtimeHealthMap,
+        [aiId]: health,
+      },
+    }));
+  },
+
+  setRuntimeHealthMap: (healthMap) => {
+    set({ runtimeHealthMap: healthMap });
+  },
+
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   resetResponses: () => {
@@ -133,10 +160,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     // corrupting our state
     switch (type) {
       case 'progress':
-        set({ currentTaskId: data.task_id as string });
-        break;
-
-      case 'task_created':
         set({ currentTaskId: data.task_id as string });
         break;
 
@@ -250,6 +273,49 @@ export const useAppStore = create<AppState>((set, get) => ({
           },
         }));
         break;
+
+      // ── Health / Runtime events ──
+      case 'session_expired': {
+        const seAiId = data.ai_id as string;
+        console.warn('[Health] Session expired:', seAiId);
+        set((state) => ({
+          runtimeHealthMap: state.runtimeHealthMap[seAiId]
+            ? {
+                ...state.runtimeHealthMap,
+                [seAiId]: { ...state.runtimeHealthMap[seAiId], state: 'login_required', session_valid: false },
+              }
+            : state.runtimeHealthMap,
+        }));
+        break;
+      }
+
+      case 'recovery_success': {
+        const rsAiId = data.ai_id as string;
+        console.log('[Health] Recovery success:', rsAiId);
+        set((state) => ({
+          runtimeHealthMap: state.runtimeHealthMap[rsAiId]
+            ? {
+                ...state.runtimeHealthMap,
+                [rsAiId]: { ...state.runtimeHealthMap[rsAiId], state: 'healthy', session_valid: true },
+              }
+            : state.runtimeHealthMap,
+        }));
+        break;
+      }
+
+      case 'ai_unavailable': {
+        const uaAiId = data.ai_id as string;
+        console.warn('[Health] AI unavailable:', uaAiId);
+        set((state) => ({
+          runtimeHealthMap: state.runtimeHealthMap[uaAiId]
+            ? {
+                ...state.runtimeHealthMap,
+                [uaAiId]: { ...state.runtimeHealthMap[uaAiId], state: 'unavailable' },
+              }
+            : state.runtimeHealthMap,
+        }));
+        break;
+      }
 
       case 'pong':
         break;

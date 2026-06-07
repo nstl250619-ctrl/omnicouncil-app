@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useAppStore, type RuntimeHealth } from '../stores/appStore';
 import Titlebar from '../components/Titlebar';
 
 interface PlatformInfo {
@@ -39,6 +40,30 @@ const DEFAULT_PLATFORMS: PlatformInfo[] = [
   { id: 'claude', name: 'Claude', url: 'claude.ai', icon: 'Cl', status: 'disconnected', latency: '--', circuitBreaker: 'OPEN', lastHeartbeat: '12m ago', profileSize: '38 MB' },
 ];
 
+/** Map RuntimeHealth state → status light color */
+function healthColor(state: string): string {
+  switch (state) {
+    case 'healthy': return 'var(--green)';
+    case 'degraded': return 'var(--amber)';
+    case 'unavailable':
+    case 'login_required': return 'var(--red)';
+    default: return 'var(--text-muted)';
+  }
+}
+
+/** Map RuntimeHealth state → label text */
+function healthLabel(state: string): string {
+  switch (state) {
+    case 'healthy': return '健康';
+    case 'degraded': return '异常';
+    case 'login_required': return '需登录';
+    case 'unavailable': return '不可用';
+    default: return '未知';
+  }
+}
+
+const API_BASE = 'http://127.0.0.1:8765';
+
 interface PlatformSetupPageProps {
   onNavigateToConsole: () => void;
 }
@@ -51,15 +76,55 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
   const [newName, setNewName] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [newHomeUrl, setNewHomeUrl] = useState('');
+  const [reauthing, setReauthing] = useState<Set<string>>(new Set());
+
+  // RuntimeHealth from store (updated by WebSocket events + HTTP polling)
+  const runtimeHealthMap = useAppStore((s) => s.runtimeHealthMap);
+  const setRuntimeHealthMap = useAppStore((s) => s.setRuntimeHealthMap);
+
+  // ── Poll /api/runtime/health every 30s ──
+  const fetchHealthRef = useRef<() => void>(() => {});
+  fetchHealthRef.current = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/runtime/health`);
+      if (!res.ok) return;
+      const data: Record<string, RuntimeHealth> = await res.json();
+      setRuntimeHealthMap(data);
+    } catch (e) {
+      // Silent — backend may not be running
+    }
+  };
+
+  useEffect(() => {
+    fetchHealthRef.current();
+    const interval = setInterval(() => fetchHealthRef.current(), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Merge health data into PlatformInfo status for display
+  const mergedPlatforms = useMemo(() => {
+    return platforms.map((p) => {
+      const rh = runtimeHealthMap[p.id];
+      if (!rh) return p;
+      const state = rh.state;
+      return {
+        ...p,
+        status: state === 'healthy' ? 'connected' as const : 'disconnected' as const,
+        lastHeartbeat: rh.last_heartbeat
+          ? `${Math.floor((Date.now() / 1000 - rh.last_heartbeat))}s ago`
+          : p.lastHeartbeat,
+      };
+    });
+  }, [platforms, runtimeHealthMap]);
 
   const filteredPlatforms = useMemo(
     () =>
-      platforms.filter(
+      mergedPlatforms.filter(
         (p) =>
           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.url.toLowerCase().includes(searchQuery.toLowerCase())
       ),
-    [platforms, searchQuery]
+    [mergedPlatforms, searchQuery]
   );
 
   const toggleSelect = useCallback((id: string, e?: React.MouseEvent) => {
@@ -74,63 +139,81 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
 
   const toggleAll = useCallback(() => {
     setSelected((prev) =>
-      prev.size === platforms.length ? new Set() : new Set(platforms.map((p) => p.id))
+      prev.size === mergedPlatforms.length ? new Set() : new Set(mergedPlatforms.map((p) => p.id))
     );
-  }, [platforms]);
+  }, [mergedPlatforms]);
 
-  // Actions (stubs with TODO comments)
+  // ── Backend API calls ──
+
   const reconnectPlatform = useCallback(
-    (id: string, e?: React.MouseEvent) => {
+    async (id: string, e?: React.MouseEvent) => {
       e?.stopPropagation();
-      // TODO: 对接后端重连接口
-      // 例如: send('reconnect', { platform: id });
-      console.log('reconnect:', id);
-      setPlatforms((prev) =>
-        prev.map((p) =>
-          p.id === id
-            ? { ...p, status: 'connected' as const, latency: (Math.random() * 3 + 0.5).toFixed(1) + 's', circuitBreaker: 'CLOSED' as const, lastHeartbeat: '0s ago' }
-            : p
-        )
-      );
+      if (reauthing.has(id)) return;
+      setReauthing((prev) => new Set(prev).add(id));
+      try {
+        const res = await fetch(`${API_BASE}/api/providers/${id}/reauth`, { method: 'POST' });
+        if (res.ok) {
+          // Optimistic update — backend recovery will broadcast via WS
+          setPlatforms((prev) =>
+            prev.map((p) =>
+              p.id === id
+                ? { ...p, status: 'connected' as const, circuitBreaker: 'CLOSED' as const, lastHeartbeat: '0s ago' }
+                : p
+            )
+          );
+        }
+      } catch (err) {
+        console.error('reconnect failed:', err);
+      } finally {
+        setReauthing((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      }
+      // Refresh health
+      setTimeout(() => fetchHealthRef.current(), 2000);
     },
-    []
+    [reauthing]
   );
 
   const resetPlatform = useCallback((id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    // TODO: 对接后端重置Profile接口
-    console.log('reset:', id);
-    setPlatforms((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, profileSize: Math.floor(Math.random() * 30 + 10) + ' MB' } : p
-      )
-    );
-  }, []);
+    // Reset = reauth + cleanup
+    reconnectPlatform(id);
+  }, [reconnectPlatform]);
 
-  const deletePlatform = useCallback((id: string, e?: React.MouseEvent) => {
+  const deletePlatform = useCallback(async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const p = platforms.find((x) => x.id === id);
+    const p = mergedPlatforms.find((x) => x.id === id);
     if (!p || !window.confirm(`确认删除 ${p.name}？`)) return;
-    // TODO: 对接后端删除接口
-    setPlatforms((prev) => prev.filter((x) => x.id !== id));
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  }, [platforms]);
+    try {
+      const res = await fetch(`${API_BASE}/api/providers/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setPlatforms((prev) => prev.filter((x) => x.id !== id));
+        setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      } else {
+        console.warn('DELETE /api/providers returned', res.status, '- falling back to local delete');
+        setPlatforms((prev) => prev.filter((x) => x.id !== id));
+        setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      }
+    } catch {
+      // Backend not available — local delete only
+      setPlatforms((prev) => prev.filter((x) => x.id !== id));
+      setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  }, [mergedPlatforms]);
 
   const showWebPage = useCallback((id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    // TODO: 对接 Tauri 打开浏览器窗口
-    // 例如: await invoke('show_browser', { platformId: id });
-    console.log('show web:', id);
-  }, []);
+    const p = mergedPlatforms.find((x) => x.id === id);
+    if (p?.homeUrl) {
+      window.open(p.homeUrl, '_blank', 'noopener');
+    } else if (p?.url) {
+      window.open(`https://${p.url}`, '_blank', 'noopener');
+    }
+  }, [mergedPlatforms]);
 
-  const addPlatform = useCallback(() => {
+  const addPlatform = useCallback(async () => {
     if (!newName.trim() || !newUrl.trim()) return;
     const id = newName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-    if (platforms.find((p) => p.id === id)) return;
+    if (mergedPlatforms.find((p) => p.id === id)) return;
     const newPlatform: PlatformInfo = {
       id,
       name: newName,
@@ -148,7 +231,18 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
     setNewName('');
     setNewUrl('');
     setNewHomeUrl('');
-  }, [newName, newUrl, newHomeUrl, platforms]);
+
+    // Also notify backend
+    try {
+      await fetch(`${API_BASE}/api/providers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName, url: newUrl, home_url: newHomeUrl }),
+      });
+    } catch {
+      // Backend may not be running — platform is added locally
+    }
+  }, [newName, newUrl, newHomeUrl, mergedPlatforms]);
 
   const reconnectSelected = useCallback(() => {
     if (!selected.size) return;
@@ -162,14 +256,14 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
 
   const deleteSelected = useCallback(() => {
     if (!selected.size) return;
-    const names = platforms.filter((p) => selected.has(p.id)).map((p) => p.name).join(', ');
+    const names = mergedPlatforms.filter((p) => selected.has(p.id)).map((p) => p.name).join(', ');
     if (!window.confirm(`确认删除 ${selected.size} 个平台？\n${names}`)) return;
     setPlatforms((prev) => prev.filter((p) => !selected.has(p.id)));
     setSelected(new Set());
-  }, [selected, platforms]);
+  }, [selected, mergedPlatforms]);
 
-  const connectedCount = platforms.filter((p) => p.status === 'connected').length;
-  const disconnectedCount = platforms.filter((p) => p.status === 'disconnected').length;
+  const connectedCount = mergedPlatforms.filter((p) => p.status === 'connected').length;
+  const disconnectedCount = mergedPlatforms.filter((p) => p.status === 'disconnected').length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', position: 'relative', zIndex: 1 }}>
@@ -319,7 +413,7 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
                     fontWeight: 500,
                   }}
                 >
-                  {platforms.length}
+                  {mergedPlatforms.length}
                 </span>
               </div>
               <div
@@ -527,33 +621,46 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
                         </div>
                       </td>
                       <td style={tdStyle}>
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            fontFamily: "'DM Mono', monospace",
-                            fontSize: 11,
-                            padding: '3px 10px',
-                            borderRadius: 12,
-                            ...(p.status === 'connected'
-                              ? { background: 'var(--green-glow)', color: 'var(--green)', border: '1px solid rgba(62,207,142,0.2)' }
-                              : p.status === 'disconnected'
-                              ? { background: 'var(--red-glow)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.2)' }
-                              : { background: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }),
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: '50%',
-                              background: p.status === 'connected' ? 'var(--green)' : p.status === 'disconnected' ? 'var(--red)' : 'var(--text-muted)',
-                              boxShadow: p.status === 'connected' ? '0 0 6px rgba(62,207,142,0.5)' : 'none',
-                            }}
-                          />
-                          {p.status === 'connected' ? '已连接' : p.status === 'disconnected' ? '未连接' : '空闲'}
-                        </span>
+                        {(() => {
+                          const rh = runtimeHealthMap[p.id];
+                          const state = rh?.state ?? 'unknown';
+                          const color = healthColor(state);
+                          const label = rh ? healthLabel(state) : (p.status === 'connected' ? '已连接' : p.status === 'disconnected' ? '未连接' : '空闲');
+                          const isGreen = color === 'var(--green)';
+                          const isRed = color === 'var(--red)';
+                          const isAmber = color === 'var(--amber)';
+                          return (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 5,
+                                fontFamily: "'DM Mono', monospace",
+                                fontSize: 11,
+                                padding: '3px 10px',
+                                borderRadius: 12,
+                                ...(isGreen
+                                  ? { background: 'var(--green-glow)', color: 'var(--green)', border: '1px solid rgba(62,207,142,0.2)' }
+                                  : isRed
+                                  ? { background: 'var(--red-glow)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.2)' }
+                                  : isAmber
+                                  ? { background: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.2)' }
+                                  : { background: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }),
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  background: color,
+                                  boxShadow: isGreen ? '0 0 6px rgba(62,207,142,0.5)' : isRed ? '0 0 6px rgba(239,68,68,0.5)' : 'none',
+                                }}
+                              />
+                              {label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td style={tdStyle}>
                         <span
@@ -589,10 +696,32 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
                       </td>
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          <button onClick={(e) => reconnectPlatform(p.id, e)} style={rowBtnStyle} title="重连">⟳</button>
-                          <button onClick={(e) => resetPlatform(p.id, e)} style={rowBtnStyle} title="重置">↺</button>
-                          <button onClick={(e) => showWebPage(p.id, e)} style={rowBtnStyle} title="显示网页">⧉</button>
-                          <button onClick={(e) => deletePlatform(p.id, e)} style={{ ...rowBtnStyle, color: 'var(--red)' }} title="删除">✕</button>
+                          {(() => {
+                            const rh = runtimeHealthMap[p.id];
+                            const needsRecovery = rh && (rh.state === 'degraded' || rh.state === 'login_required');
+                            const isBusy = reauthing.has(p.id);
+                            return (
+                              <>
+                                {needsRecovery && (
+                                  <button
+                                    onClick={(e) => reconnectPlatform(p.id, e)}
+                                    style={{
+                                      ...rowBtnStyle,
+                                      color: isBusy ? 'var(--text-muted)' : 'var(--amber)',
+                                      borderColor: isBusy ? 'var(--border-subtle)' : 'rgba(245,158,11,0.3)',
+                                      cursor: isBusy ? 'default' : 'pointer',
+                                    }}
+                                    title={isBusy ? '恢复中...' : '恢复'}
+                                    disabled={isBusy}
+                                  >
+                                    {isBusy ? '⋯' : '⟳'}
+                                  </button>
+                                )}
+                                <button onClick={(e) => showWebPage(p.id, e)} style={rowBtnStyle} title="显示网页">⧉</button>
+                                <button onClick={(e) => deletePlatform(p.id, e)} style={{ ...rowBtnStyle, color: 'var(--red)' }} title="删除">✕</button>
+                              </>
+                            );
+                          })()}
                         </div>
                       </td>
                     </tr>
@@ -626,7 +755,7 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
               未连接: <span style={{ color: 'var(--red)' }}>{disconnectedCount}</span>
             </span>
             <span style={{ margin: '0 10px', opacity: 0.3 }}>|</span>
-            <span>总计: {platforms.length} 个平台</span>
+            <span>总计: {mergedPlatforms.length} 个平台</span>
             <span style={{ margin: '0 10px', opacity: 0.3 }}>|</span>
             <span
               onClick={onNavigateToConsole}

@@ -7,9 +7,10 @@ interface ErrorToastProps {
   onRetry?: () => void;
   onDismiss: () => void;
   autoHideMs?: number;
+  severity?: 'error' | 'warning' | 'success';
 }
 
-export function ErrorToast({ error, recoverable, suggestion, onRetry, onDismiss, autoHideMs = 8000 }: ErrorToastProps) {
+export function ErrorToast({ error, recoverable, suggestion, onRetry, onDismiss, autoHideMs = 5000, severity = 'error' }: ErrorToastProps) {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
@@ -20,9 +21,15 @@ export function ErrorToast({ error, recoverable, suggestion, onRetry, onDismiss,
     return () => clearTimeout(timer);
   }, [autoHideMs, onDismiss]);
 
+  const iconMap = {
+    error: '⚠️',
+    warning: '⚡',
+    success: '✅',
+  };
+
   return (
-    <div className={`error-toast ${visible ? 'show' : 'hide'}`}>
-      <div className="error-toast-icon">⚠️</div>
+    <div className={`error-toast ${visible ? 'show' : 'hide'} toast-${severity}`}>
+      <div className="error-toast-icon">{iconMap[severity]}</div>
       <div className="error-toast-content">
         <div className="error-toast-message">{error}</div>
         {suggestion && <div className="error-toast-suggestion">{suggestion}</div>}

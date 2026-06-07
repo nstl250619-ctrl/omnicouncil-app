@@ -5,7 +5,13 @@ const WS_URL = 'ws://127.0.0.1:8765/ws';
 const RECONNECT_DELAY = 2000;
 const HEARTBEAT_INTERVAL = 15000;
 
-export function useWebSocket() {
+export interface HealthEvent {
+  type: 'session_expired' | 'recovery_success' | 'ai_unavailable';
+  ai_id: string;
+  message: string;
+}
+
+export function useWebSocket(onHealthEvent?: (event: HealthEvent) => void) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval>>();
@@ -54,6 +60,16 @@ export function useWebSocket() {
         if (cancelled) return;
         try {
           const msg = JSON.parse(event.data);
+
+          // Fire health event callback for toast notifications
+          if (onHealthEvent && ['session_expired', 'recovery_success', 'ai_unavailable'].includes(msg.type)) {
+            onHealthEvent({
+              type: msg.type as HealthEvent['type'],
+              ai_id: msg.data?.ai_id ?? '',
+              message: msg.data?.message ?? '',
+            });
+          }
+
           handleMessageRef.current(msg);
         } catch (e) {
           console.error('[WS] Failed to parse message:', e);
