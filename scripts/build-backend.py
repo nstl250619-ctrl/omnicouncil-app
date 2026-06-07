@@ -51,9 +51,9 @@ def build():
     exe_path = dest / exe_name
     if exe_path.exists():
         size_mb = exe_path.stat().st_size / 1024 / 1024
-        print(f"✅ Backend built: {exe_path} ({size_mb:.1f}MB)")
+        print(f"[OK] Backend built: {exe_path} ({size_mb:.1f}MB)")
     else:
-        print(f"⚠️  Backend executable not found at {exe_path}")
+        print(f"[WARN] Backend executable not found at {exe_path}")
         # List what's in the dist directory
         for f in dest.iterdir():
             print(f"  {f.name}")

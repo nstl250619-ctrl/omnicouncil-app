@@ -1,5 +1,4 @@
 # -*- mode: python ; coding: utf-8 -*-
-import sys
 from pathlib import Path
 
 block_cipher = None
@@ -30,14 +29,19 @@ a = Analysis(
         'uvicorn.protocols.websockets.auto',
         'uvicorn.lifespan',
         'uvicorn.lifespan.on',
-        'engine',
-        'engine.core',
-        'engine.comparison',
-        'engine.consensus',
-        'engine.conflict',
-        'api.routes',
+        'fastapi',
+        'pydantic',
+        'patchright',
         'api.events',
-        'ws.connection',
+        'api.routes',
+        'browser.factory',
+        'browser.embedded_engine',
+        'engine.layers.layer1_ai_access.manager',
+        'engine.layers.layer2_scheduler.scheduler_center',
+        'engine.layers.layer3_collector.result_collector',
+        'engine.layers.layer4_comparison.comparison_engine',
+        'engine.layers.layer5_consensus.consensus_engine',
+        'engine.layers.layer6_conflict.conflict_engine',
         'shared.app_state',
         'shared.logger',
         'providers.base',
@@ -46,8 +50,8 @@ a = Analysis(
         'providers.gemini',
         'providers.chatgpt',
         'providers.mimo',
-        'browser.embedded_engine',
-        'storage.session_store',
+        'storage.local',
+        'ws.connection',
     ],
     hookspath=[],
     hooksconfig={},
