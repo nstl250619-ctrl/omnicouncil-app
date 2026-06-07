@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "omnicounci1l-judge"
-version = "1.0.0"
+version = "2.0.0"
 description = "AI judge engine for OmniCouncil — optional external AI judgment for consensus validation"
 requires-python = ">=3.11"
 license = "MIT"

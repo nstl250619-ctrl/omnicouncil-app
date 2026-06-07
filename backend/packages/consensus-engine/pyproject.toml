@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "omnicounci1l-consensus"
-version = "1.0.0"
+version = "2.0.0"
 description = "Consensus analysis engine for OmniCouncil — finds agreement and disagreement between AI responses"
 requires-python = ">=3.11"
 license = "MIT"
