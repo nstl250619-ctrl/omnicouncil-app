@@ -39,7 +39,7 @@ function ResponseCard({ aiId, response, onRetry }: { aiId: string; response: AIR
   const [expanded, setExpanded] = useState(false);
   const color = AI_COLORS[aiId] || '#6366f1';
   const name = AI_NAMES[aiId] || aiId.toUpperCase();
-  const contentLength = response.content.length;
+  const contentLength = (response.content || '').length;
   const shouldTruncate = contentLength > 500 && !expanded;
 
   return (

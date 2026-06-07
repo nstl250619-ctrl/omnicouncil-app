@@ -40,6 +40,7 @@ def register_events(ws_manager) -> None:
         logger.warning("No EventBus — event handlers not registered")
         return
 
+    event_bus.on("ai:task:started", on_ai_started)
     event_bus.on("ai:task:completed", on_ai_completed)
     event_bus.on("ai:task:failed", on_ai_failed)
     event_bus.on("collector:context:ready", on_context_ready)
@@ -54,9 +55,17 @@ def register_events(ws_manager) -> None:
 # ========== Event Handlers ==========
 
 
+async def on_ai_started(task_id: str, ai_id: str, ai_name: str = "", **kwargs):
+    """Handle AI task started event."""
+    await _ws_manager.send_task_event({
+        "type": "ai_started",
+        "data": {"task_id": task_id, "ai_id": ai_id, "ai_name": ai_name}
+    }, task_id=task_id)
+
+
 async def on_ai_completed(task_id: str, ai_id: str, response, **kwargs):
     """Handle AI completion event from engine."""
-    await _ws_manager.broadcast({
+    await _ws_manager.send_task_event({
         "type": "ai_completed",
         "data": {
             "task_id": task_id,
@@ -65,20 +74,20 @@ async def on_ai_completed(task_id: str, ai_id: str, response, **kwargs):
             "word_count": response.word_count,
             "elapsed_ms": int(response.duration * 1000),
         }
-    })
+    }, task_id=task_id)
 
 
 async def on_ai_failed(task_id: str, ai_id: str, error: str, **kwargs):
     """Handle AI failure event from engine."""
-    await _ws_manager.broadcast({
+    await _ws_manager.send_task_event({
         "type": "ai_failed",
         "data": {"task_id": task_id, "ai_id": ai_id, "error": error}
-    })
+    }, task_id=task_id)
 
 
 async def on_context_ready(context, **kwargs):
     """Handle RoundContext ready event."""
-    await _ws_manager.broadcast({
+    await _ws_manager.send_task_event({
         "type": "all_completed",
         "data": {
             "task_id": context.task_id,
@@ -88,7 +97,7 @@ async def on_context_ready(context, **kwargs):
                 "failure_count": context.summary.failure_count,
             }
         }
-    })
+    }, task_id=context.task_id)
 
     # Trigger comparison analysis
     asyncio.create_task(run_comparison(context.task_id))

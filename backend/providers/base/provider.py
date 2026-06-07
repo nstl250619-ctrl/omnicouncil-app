@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from shared.errors import AILoginRequiredError
-from shared.types import AIResponse, AIStatus, ProviderStatus, SubmitOptions
+from shared.types import AIResponse, AIStatus, ProviderStatus, SessionState, SubmitOptions
 
 from engine.layers.layer1_ai_access.response_normalizer import ResponseNormalizer
 
@@ -155,6 +155,9 @@ class BaseProvider(ABC):
         except AILoginRequiredError:
             self._status = AIStatus.LOGIN_REQUIRED
             self._consecutive_failures += 1
+            # Update the engine's session state
+            if self._engine and hasattr(self._engine, "set_session_state"):
+                self._engine.set_session_state(self.config().provider_id, SessionState.AUTH_EXPIRED)
 
             # Try to trigger login
             if self._engine:
@@ -212,30 +215,88 @@ class BaseProvider(ABC):
 
     # ========== Runtime: Browser automation (default impl) ==========
 
+    async def _pre_flight_check(self, page: Any) -> tuple[bool, str]:
+        """Quick check that the page is healthy before interacting.
+
+        Returns (ok, reason) — ok=False means the caller should abort.
+        Total check should complete in < 2 s.
+        """
+        # 1. Page alive?
+        if page.is_closed():
+            return False, "page_closed"
+
+        url = page.url
+
+        # 2. Known-bad URL patterns
+        bad_keywords = ["about:blank", "signin", "login", "auth0", "captcha"]
+        for kw in bad_keywords:
+            if kw in url.lower():
+                # Sign-in pages mean the session has expired
+                if kw in ("signin", "login", "auth0"):
+                    return False, "login_required"
+                return False, f"bad_url:{kw}"
+
+        # 3. Cloudflare / challenge detection via title + body snippet
+        try:
+            title = await page.title()
+            title_lower = title.lower()
+            if "just a moment" in title_lower or "cloudflare" in title_lower:
+                return False, "cloudflare_challenge"
+        except Exception:
+            return False, "page_unresponsive"
+
+        # 4. Core interaction element exists
+        try:
+            input_box = await self._find_input(page)
+            if input_box is None:
+                return False, "input_missing"
+        except Exception:
+            return False, "input_check_failed"
+
+        return True, "ok"
+
+    async def _is_logged_in(self, page: Any) -> bool:
+        """Check whether the user appears to be logged in.
+
+        Subclasses may override for provider-specific checks.
+        """
+        url = page.url
+        # about:blank / error pages are never logged in
+        if url in ("about:blank", "chrome://error/", "chrome://newtab/"):
+            return False
+        # Known login-required URL patterns
+        login_patterns = ["signin", "login", "auth0", "accounts.google.com"]
+        for pat in login_patterns:
+            if pat in url.lower():
+                return False
+        return True
+
     async def _send_async(self, prompt: str, timeout_ms: int) -> str:
-        """Send prompt via browser automation. Override for AI-specific logic."""
+        """Send prompt via browser automation with pre-flight check.
+        Override for AI-specific logic.
+        """
         if not self._engine:
             raise RuntimeError(f"{self.config().display_name}: no browser engine")
 
         cfg = self.config()
         page = await self._engine.get_page(cfg.provider_id, cfg.chat_url)
-        await page.wait_for_timeout(2000)
 
-        # Check login
-        from browser.engine import AuthStatus
-        auth = await self._engine.check_auth(cfg.provider_id)
-        if auth in (AuthStatus.NOT_LOGGED_IN, AuthStatus.EXPIRED):
-            raise AILoginRequiredError(cfg.provider_id)
+        # Pre-flight: quick health check before operating on the page
+        preflight_ok, preflight_reason = await self._pre_flight_check(page)
+        if not preflight_ok:
+            if preflight_reason == "login_required":
+                logger.info("%s: login required (pre-flight)", cfg.display_name)
+                raise AILoginRequiredError(cfg.provider_id)
+            raise RuntimeError(
+                f"{cfg.display_name}: pre-flight failed ({preflight_reason})"
+            )
+
+        await page.wait_for_timeout(2000)
 
         # Find input
         input_box = await self._find_input(page)
         if input_box is None:
-            body = ""
-            with contextlib.suppress(Exception):
-                body = (await page.locator("body").inner_text(timeout=3000))[:200]
-            if "登录" in body or "login" in body.lower():
-                raise AILoginRequiredError(cfg.provider_id)
-            raise RuntimeError(f"{cfg.display_name}: could not find input box. Body: {body[:100]}")
+            raise RuntimeError(f"{cfg.display_name}: could not find input box")
 
         # Type and send
         await input_box.click()

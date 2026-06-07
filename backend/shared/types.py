@@ -24,6 +24,18 @@ class AIStatus(StrEnum):
     CIRCUIT_OPEN = "circuit_open"
 
 
+class SessionState(StrEnum):
+    """Precise session authentication state for each AI provider.
+
+    Replaces the previous boolean ``authenticated`` which conflated
+    "cookie file exists" with "session is valid".
+    """
+    UNKNOWN = "unknown"          # Not yet checked (initial state)
+    AUTHENTICATED = "authenticated"  # Verified valid via cookie/session check
+    AUTH_EXPIRED = "expired"     # Session known to be expired
+    REAUTH_IN_PROGRESS = "reauthing"  # User is being prompted to re-login
+
+
 class CircuitState(StrEnum):
     CLOSED = "closed"      # Normal operation
     OPEN = "open"          # Tripped, rejecting requests

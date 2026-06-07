@@ -152,7 +152,7 @@ class SchedulerCenter:
             self.cleanup_old_tasks()
 
     async def _execute_task(self, task_id: str, query: str, ai_ids: list[str]) -> None:
-        """Execute the task with concurrency/retry/timeout control."""
+        """Execute the task with per-AI timeout + non-destructive global timeout."""
         cancel = self._cancel_events.get(task_id)
 
         # Transition to RUNNING
@@ -166,29 +166,53 @@ class SchedulerCenter:
 
         self._timeout.start(task_id)
 
+        # Per-AI timeout: use scheduler's hard_timeout_ms if configured, else 90s
+        per_ai_ms = self._timeout.hard_timeout_ms if self._timeout.hard_timeout_ms else 90000
+        PER_AI_TIMEOUT = max(30, per_ai_ms // 1000)  # at least 30s
+        GLOBAL_TIMEOUT = PER_AI_TIMEOUT + 30  # when to trigger degradation
+
         async def _send_one(ai_id: str):
-            """Send to a single AI with concurrency control."""
-            if cancel and cancel.is_set():
-                return ai_id, None
+            """Send to a single AI with per-AI timeout.
+
+            No global cancel check here — each AI runs independently.
+            per-AI timeout (asyncio.wait_for) is the only cancellation mechanism.
+            """
             await self._concurrency.acquire(ai_id)
             try:
-                return ai_id, await self._send_with_retry(task_id, ai_id, query)
+                try:
+                    response = await asyncio.wait_for(
+                        self._send_with_retry(task_id, ai_id, query),
+                        timeout=PER_AI_TIMEOUT,
+                    )
+                    return ai_id, response
+                except asyncio.TimeoutError:
+                    logger.warning("Task %s: %s timed out after %ds", task_id, ai_id, PER_AI_TIMEOUT)
+                    await self._cleanup_ai(ai_id)
+                    return ai_id, None
+                except asyncio.CancelledError:
+                    logger.warning("Task %s: %s was cancelled", task_id, ai_id)
+                    await self._cleanup_ai(ai_id)
+                    return ai_id, None
             finally:
                 self._concurrency.release(ai_id)
 
-        # True parallel execution via asyncio.gather
-        responses = await asyncio.gather(
+        # Launch all AIs in parallel — never use wait_for(gather) which force-kills
+        gathered = asyncio.gather(
             *[_send_one(ai_id) for ai_id in ai_ids],
             return_exceptions=True,
         )
+        responses = await gathered
 
         results = {}
         for item in responses:
             if isinstance(item, Exception):
                 logger.error("Task %s: unexpected error in parallel dispatch: %s", task_id, item)
                 continue
+            if item is None:
+                continue
             ai_id, response = item
-            results[ai_id] = response
+            if response is not None:
+                results[ai_id] = response
 
         self._timeout.finish(task_id)
 
@@ -218,14 +242,27 @@ class SchedulerCenter:
         logger.info("Task %s completed: %s (%d/%d success)", task_id, final_status.value, success_count, len(ai_ids))
 
     async def _send_with_retry(self, task_id: str, ai_id: str, query: str):
-        """Send to AI with retry logic."""
+        """Send to AI with retry logic and single-start/final-outcome events."""
         options = SubmitOptions(timeout_ms=self._timeout.hard_timeout_ms)
+
+        # Get adapter name for events (best-effort)
+        adapter = self._ai_manager._provider_manager.get(ai_id)
+        ai_name = adapter.ai_name if adapter else ai_id
+
+        # Emit started once before any attempt
+        await self._event_bus.emit(
+            "ai:task:started", task_id=task_id, ai_id=ai_id, ai_name=ai_name,
+        )
 
         while True:
             response = await self._ai_manager.send_to_ai(ai_id, query, options, task_id=task_id)
 
             if response.success:
                 self._retry.reset(task_id)
+                await self._event_bus.emit(
+                    "ai:task:completed",
+                    task_id=task_id, ai_id=ai_id, response=response,
+                )
                 return response
 
             # Check if should retry
@@ -233,13 +270,46 @@ class SchedulerCenter:
             if self._retry.should_retry(task_id, error_code):
                 attempt = self._retry.record_attempt(task_id)
                 delay_ms = self._retry.get_delay_ms(task_id)
-                logger.info("Task %s: retrying %s (attempt %d, delay %dms)", task_id, ai_id, attempt, delay_ms)
+                logger.info(
+                    "Task %s: retrying %s (attempt %d, delay %dms)",
+                    task_id, ai_id, attempt, delay_ms,
+                )
                 await asyncio.sleep(delay_ms / 1000)
                 continue
 
-            # No more retries
+            # No more retries — final failure
             self._retry.reset(task_id)
+            await self._event_bus.emit(
+                "ai:task:failed",
+                task_id=task_id,
+                ai_id=ai_id,
+                error=response.error_message or "Unknown error",
+            )
             return response
+
+    async def _cleanup_ai(self, ai_id: str) -> None:
+        """Clean up an AI's state after a timeout or cancellation.
+
+        Resets the provider's status to READY and opens the circuit breaker
+        so that subsequent tasks don't keep trying a failing provider.
+        """
+        # Record metric
+        try:
+            from shared.metrics import MetricsCollector
+            MetricsCollector.instance().inc("ai_timeout_total", value=1)
+            MetricsCollector.instance().inc_provider(ai_id, "timeout")
+        except Exception:
+            pass
+        # Open circuit breaker
+        cb = self._ai_manager._circuit_breakers.get(ai_id)
+        if cb:
+            cb.record_failure()
+        # Reset the provider's internal state so it's dispatched again next time
+        adapter = self._ai_manager._provider_manager.get(ai_id)
+        if adapter:
+            from shared.types import AIStatus
+            if hasattr(adapter, "_status") and adapter._status != AIStatus.READY:
+                adapter._status = AIStatus.READY
 
     def cancel_task(self, task_id: str) -> None:
         """Cancel a task and signal in-flight work to stop."""

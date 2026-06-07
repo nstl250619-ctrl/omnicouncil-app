@@ -14,6 +14,7 @@ All business logic lives in:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -63,7 +64,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("Starting OmniCouncil backend...")
 
-    # Initialize EventBus
+    # Redirect all engine/provider loggers under the omnicouncil handler tree
+    from shared.logger import patch_all_loggers
+    patch_all_loggers()
     state.event_bus = EventBus()
 
     # Initialize config
@@ -74,6 +77,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     state.browser_engine = create_engine(browser_mode, headless=True)
     connected = await state.browser_engine.connect()
     logger.info("Browser engine: %s (connected=%s)", browser_mode, connected)
+
+    # Start visible-window watchdog for headless=False contexts (ChatGPT)
+    asyncio.create_task(state.browser_engine._watchdog_visible_windows())
+    logger.info("Browser watchdog started")
 
     # Initialize Provider Runtime OS
     from providers.runtime import ProviderRuntime
@@ -86,7 +93,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await state.provider_runtime.register(provider)
     state.provider_registry = registry
     # V1: exclude Claude — only ship DeepSeek, Qianwen, Gemini, ChatGPT, MiMo
-    state.provider_runtime.unregister("claude")
+    await state.provider_runtime.unregister("claude")
+    state.provider_registry.unregister("claude")
     logger.info("Providers: %s", state.provider_runtime.get_ids())
 
     # Initialize Layer 1: AI Access — register all providers as adapters
@@ -102,6 +110,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         event_bus=state.event_bus,
         max_concurrent=config.scheduler.max_concurrent_tasks,
         ai_min_interval_ms=config.scheduler.ai_min_interval_ms,
+        soft_timeout_ms=config.scheduler.soft_timeout_ms,
+        hard_timeout_ms=config.scheduler.hard_timeout_ms,
     )
 
     # Initialize Layer 3: Collector
@@ -117,6 +127,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     state.consensus_engine = ConsensusEngine(config=config.comparison)
     state.conflict_engine = ConflictEngine()
     state.judge_engine = JudgeEngine()
+
+    # Initialize SessionManager (background auth heartbeat)
+    from engine.session.manager import SessionManager
+    state.session_manager = SessionManager(
+        engine=state.browser_engine,
+        interval_seconds=300,  # every 5 minutes
+    )
+    state.session_manager.start()
 
     # Initialize Storage
     state.storage = LocalStorage()
@@ -149,6 +167,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Cleanup
     logger.info("Shutting down OmniCouncil backend...")
+    if state.session_manager:
+        await state.session_manager.stop()
     if state.provider_runtime:
         await state.provider_runtime.destroy_all()
     if state.browser_engine:

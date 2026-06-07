@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import time
 from typing import Any
 
 from shared.errors import AILoginRequiredError
 
 from ..base import BaseProvider, ProviderConfig
+
+logger = logging.getLogger(__name__)
 
 
 class GeminiProvider(BaseProvider):
@@ -41,6 +44,18 @@ class GeminiProvider(BaseProvider):
         if input_box is None:
             if await self._has_login_redirect(page):
                 raise AILoginRequiredError(cfg.provider_id)
+            # Diagnostic: capture page state
+            try:
+                page_url = page.url
+                page_title = await page.title()
+                body_text = await page.locator("body").inner_text(timeout=2000)
+                body_preview = body_text[:500].replace("\n", " | ")
+                logger.warning(
+                    "Gemini input box not found. URL=%s title=%s body_preview=%s",
+                    page_url, page_title, body_preview,
+                )
+            except Exception as diag_err:
+                logger.warning("Gemini diagnostic failed: %s", diag_err)
             raise RuntimeError("Gemini: could not find input box")
 
         # Type and send
@@ -56,8 +71,11 @@ class GeminiProvider(BaseProvider):
     async def _find_input(self, page: Any) -> Any:
         selectors = [
             "[contenteditable='true']",
+            "div[contenteditable='true']",
             "textarea",
             "[role='textbox']",
+            "main textarea",
+            "gemini-app textarea",
         ]
         for sel in selectors:
             try:
@@ -71,9 +89,18 @@ class GeminiProvider(BaseProvider):
     async def _is_logged_in(self, page: Any) -> bool:
         """Check if logged in via Google account."""
         url = page.url
+        if url in ("about:blank", "chrome://error/", "chrome://newtab/"):
+            return False
         if "accounts.google.com" in url:
             return False
         if "signin" in url.lower() or "login" in url.lower():
+            return False
+        # Cloudflare / challenge pages
+        try:
+            title = await page.title()
+            if "just a moment" in title.lower() or "cloudflare" in title.lower():
+                return False
+        except Exception:
             return False
         return True
 
@@ -112,6 +139,9 @@ class GeminiProvider(BaseProvider):
             '[class*="response"]',
             '[class*="model-response"]',
             '[class*="message-content"]',
+            '[class*="conversation-turn"] [class*="response"]',
+            '[class*="gemini"] [class*="message"]',
+            '[class*="chat-message"][class*="assistant"]',
         ]
         for sel in selectors:
             try:
@@ -133,9 +163,10 @@ class GeminiProvider(BaseProvider):
             body = await page.locator("body").inner_text(timeout=3000)
             body = body.replace("\xa0", " ")
             lines = [l.strip() for l in body.split("\n") if l.strip()]
+            # Find last occurrence of prompt (user's message)
             prompt_idx = None
-            for i, line in enumerate(lines):
-                if prompt in line:
+            for i in range(len(lines) - 1, -1, -1):
+                if prompt in lines[i]:
                     prompt_idx = i
                     break
             if prompt_idx is not None:
@@ -149,6 +180,7 @@ class GeminiProvider(BaseProvider):
         ui_elements = {
             "New chat", "Gemini", "Google", "Upgrade", "Settings",
             "Help", "Activity", "Sign in", "Send", "Copy",
+            "Stop", "Regenerate", "Show drafts",
         }
         return text in ui_elements or len(text) < 2
 

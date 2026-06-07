@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import time
 import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -15,6 +16,7 @@ import contextlib
 from shared.logger import get_logger
 
 from .engine import AuthStatus, BrowserEngine, EngineMode, EngineStatus, PageInfo
+from shared.types import SessionState
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -38,6 +40,9 @@ class EmbeddedEngine(BrowserEngine):
         self._pages: dict[str, Any] = {}
         self._connected = False
         self._authenticated: set[str] = set()
+        self._session_states: dict[str, SessionState] = {}
+        self._page_created_at: dict[str, float] = {}  # ai_id → creation timestamp
+        self._page_last_used: dict[str, float] = {}   # ai_id → last-use timestamp
 
     @property
     def mode(self) -> EngineMode:
@@ -54,9 +59,32 @@ class EmbeddedEngine(BrowserEngine):
             _debug("Playwright connected")
 
             for ai_id in ["deepseek", "qianwen", "gemini", "chatgpt", "mimo"]:
-                if self._has_saved_cookies(ai_id):
+                state = self._has_valid_session(ai_id)
+                self._session_states[ai_id] = state
+                if state == SessionState.AUTHENTICATED:
                     self._authenticated.add(ai_id)
-                    _debug(f"Found saved session for {ai_id}")
+                    _debug(f"Found valid session for {ai_id}")
+                elif state == SessionState.AUTH_EXPIRED:
+                    _debug(f"{ai_id}: session expired")
+                else:
+                    _debug(f"{ai_id}: no session (UNKNOWN)")
+
+            # Pre-warm ChatGPT page to complete Cloudflare challenge
+            if "chatgpt" in self._authenticated:
+                _debug("Pre-warming ChatGPT page (non-headless to pass Cloudflare)...")
+                try:
+                    page = await self.get_page("chatgpt", "https://chatgpt.com")
+                    # Wait up to 20s for Cloudflare challenge to complete
+                    for _ in range(20):
+                        await page.wait_for_timeout(1000)
+                        title = await page.title()
+                        if "Just a moment" not in title and "challenge" not in title.lower():
+                            _debug(f"ChatGPT pre-warm completed: {title}")
+                            break
+                    else:
+                        _debug("ChatGPT: Cloudflare challenge still present after 20s")
+                except Exception as e:
+                    _debug(f"ChatGPT pre-warm failed: {e}")
 
             return True
         except Exception as e:
@@ -85,10 +113,24 @@ class EmbeddedEngine(BrowserEngine):
             return self._contexts[ai_id]
         profile_dir = self._get_profile_dir(ai_id)
         Path(profile_dir).mkdir(parents=True, exist_ok=True)
+        # Base stealth args for all providers
+        launch_args = [
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+            "--disable-features=IsolateOrigins,site-per-process",
+        ]
+        # ChatGPT must run non-headless to pass Cloudflare challenges
+        context_headless = self._headless
+        if ai_id == "chatgpt":
+            context_headless = False
+            launch_args.extend([
+                "--disable-web-security",
+                "--disable-features=ChromeWhatsNewUI",
+            ])
         ctx = await self._playwright.chromium.launch_persistent_context(
             profile_dir,
-            headless=self._headless,
-            args=["--disable-blink-features=AutomationControlled"],
+            headless=context_headless,
+            args=launch_args,
         )
         self._contexts[ai_id] = ctx
         return ctx
@@ -96,28 +138,127 @@ class EmbeddedEngine(BrowserEngine):
     async def get_page(self, ai_id: str, url: str) -> Any:
         if not self._connected:
             raise RuntimeError("Browser not connected")
+        # Opportunistic eviction of stale pages
+        self._evict_stale_pages()
         if ai_id in self._pages:
             page = self._pages[ai_id]
             try:
                 _ = page.url
-                return page
+                if await self._is_page_usable(page):
+                    self._page_last_used[ai_id] = time.time()
+                    return page
+                # Page exists but is in bad state — evict it
+                logger.info("Evicting unusable page for %s (url=%s)", ai_id, page.url)
+                await self._evict_page(ai_id)
             except Exception:
-                del self._pages[ai_id]
+                await self._evict_page(ai_id)
+        # Create fresh page and navigate
         ctx = await self._get_context(ai_id)
         page = await ctx.new_page()
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             await page.wait_for_timeout(2000)
         except Exception as e:
-            logger.warning("Failed to navigate to %s: %s", url, e)
+            logger.error("Failed to navigate to %s: %s", url, e)
+            await page.close()
+            raise RuntimeError(f"Navigation failed for {ai_id}: {e}") from e
         self._pages[ai_id] = page
+        self._page_created_at[ai_id] = time.time()
+        self._page_last_used[ai_id] = time.time()
         return page
+
+    async def _is_page_usable(self, page: Any) -> bool:
+        """Quick check whether a cached page is still in a usable state."""
+        if page.is_closed():
+            return False
+        url = page.url
+        # Blacklist known-broken URLs
+        bad_keywords = ["about:blank", "signin", "login", "auth0", "captcha"]
+        if any(kw in url.lower() for kw in bad_keywords):
+            return False
+        return True
+
+    async def _evict_page(self, ai_id: str) -> None:
+        """Safely close and remove a cached page."""
+        if ai_id in self._pages:
+            try:
+                await self._pages[ai_id].close()
+            except Exception:
+                pass
+            del self._pages[ai_id]
+        self._page_created_at.pop(ai_id, None)
+        self._page_last_used.pop(ai_id, None)
+
+    def _evict_stale_pages(self, max_age: float = 600, max_idle: float = 120) -> int:
+        """Close pages that are too old or idle to reclaim memory."""
+        now = time.time()
+        evicted = 0
+        for ai_id in list(self._pages.keys()):
+            created = self._page_created_at.get(ai_id, 0)
+            last_used = self._page_last_used.get(ai_id, 0)
+            age = now - created
+            idle = now - last_used
+            if age > max_age or (idle > max_idle and last_used > 0):
+                logger.info("Evicting stale page for %s (age=%.0fs, idle=%.0fs)", ai_id, age, idle)
+                # Don't await in sync method — schedule the close
+                asyncio.ensure_future(self._evict_page(ai_id))
+                evicted += 1
+        return evicted
+
+    async def _is_page_usable(self, page: Any) -> bool:
+        """Quick check whether a cached page is still in a usable state."""
+        if page.is_closed():
+            return False
+        url = page.url
+        # Blacklist known-broken URLs
+        bad_keywords = ["about:blank", "signin", "login", "auth0", "captcha"]
+        if any(kw in url.lower() for kw in bad_keywords):
+            return False
+        return True
+
+    async def _evict_page(self, ai_id: str) -> None:
+        """Safely close and remove a cached page."""
+        if ai_id in self._pages:
+            try:
+                await self._pages[ai_id].close()
+            except Exception:
+                pass
+            del self._pages[ai_id]
 
     async def close_page(self, ai_id: str) -> None:
         if ai_id in self._pages:
             with contextlib.suppress(Exception):
                 await self._pages[ai_id].close()
             del self._pages[ai_id]
+
+    # ========== Visible window watchdog ==========
+
+    async def _watchdog_visible_windows(self) -> None:
+        """Periodically check that visible browser windows are still alive.
+
+        If a user accidentally closes a visible Chromium window (e.g. ChatGPT
+        which runs headless=False), this watchdog detects it and tries to
+        rebuild the context so the provider remains usable.
+        """
+        while True:
+            await asyncio.sleep(30)
+            for ai_id, ctx in list(self._contexts.items()):
+                # Only check contexts launched as visible (headless=False)
+                if ai_id == "chatgpt":
+                    try:
+                        # If the context's browser is disconnected, rebuild it
+                        pages = ctx.pages
+                        if not pages:
+                            logger.info("Watchdog: %s has no pages, rebuilding...", ai_id)
+                            await self._evict_page(ai_id)
+                            del self._contexts[ai_id]
+                            self._authenticated.discard(ai_id)
+                    except Exception as exc:
+                        logger.warning("Watchdog: %s context died (%s), rebuilding...", ai_id, exc)
+                        await self._evict_page(ai_id)
+                        if ai_id in self._contexts:
+                            del self._contexts[ai_id]
+                        self._authenticated.discard(ai_id)
 
     async def check_auth(self, ai_id: str) -> AuthStatus:
         if ai_id not in self._pages:
@@ -226,21 +367,21 @@ class EmbeddedEngine(BrowserEngine):
             await asyncio.sleep(2)
 
             # Check cookies
-            has_cookies = self._has_saved_cookies(ai_id)
-            _debug(f"Cookie check: {has_cookies}")
+            state = self._has_valid_session(ai_id)
+            _debug(f"Session state: {state.value}")
 
-            if has_cookies:
+            if state == SessionState.AUTHENTICATED:
                 self._authenticated.add(ai_id)
                 _debug(f"LOGIN SUCCESSFUL for {ai_id}")
                 return True, ""
 
             # Retry
-            _debug("Waiting 3 more seconds for cookies...")
+            _debug("Waiting 3 more seconds for session verify...")
             await asyncio.sleep(3)
-            has_cookies = self._has_saved_cookies(ai_id)
-            _debug(f"Cookie check (retry): {has_cookies}")
+            state = self._has_valid_session(ai_id)
+            _debug(f"Session state (retry): {state.value}")
 
-            if has_cookies:
+            if state == SessionState.AUTHENTICATED:
                 self._authenticated.add(ai_id)
                 _debug(f"LOGIN SUCCESSFUL for {ai_id} (retry)")
                 return True, ""
@@ -261,19 +402,65 @@ class EmbeddedEngine(BrowserEngine):
                 except Exception as e:
                     _debug(f"Error closing browser: {e}")
 
-    def _has_saved_cookies(self, ai_id: str) -> bool:
+    def _has_valid_session(self, ai_id: str) -> SessionState:
+        """Check whether the AI provider has a valid auth session.
+
+        Returns ``SessionState.AUTHENTICATED`` only when a cookie for the
+        AI's known domain exists *and* has not expired.  A bare cookie file
+        with no matching domain cookies is treated as ``AUTH_EXPIRED``.
+        """
         profile_dir = Path(self._get_profile_dir(ai_id))
-        # Check both old and new Chromium cookie locations
         cookie_paths = [
             profile_dir / "Default" / "Cookies",
             profile_dir / "Default" / "Network" / "Cookies",
         ]
+
+        # Per-provider cookie domain + auth cookie name patterns.
+        # Auth cookies are identified by being HttpOnly (is_httponly=1).
+        # Tracking/analytics cookies are NOT HttpOnly.
+        provider_config: dict[str, tuple[str, list[str]]] = {
+            "deepseek": ("chat.deepseek.com", ["sessionid", "token", "auth"]),
+            "qianwen":  ("qianwen.com",  ["sid", "login_", "ALI_", "Session", "cookie2"]),
+            "gemini":   ("google.com",   ["SAPISID", "SSID", "__Secure-", "OSID"]),
+            "chatgpt":  ("chatgpt.com",  ["__Secure-next-auth.session-token",
+                                           "__Host-next-auth.csrf-token"]),
+            "mimo":     ("xiaomimimo.com", ["session", "token", "auth"]),
+        }
+        domain, auth_names = provider_config.get(ai_id, (ai_id, ["session", "token", "auth"]))
+
         for cookie_file in cookie_paths:
-            if cookie_file.exists() and cookie_file.stat().st_size > 0:
-                _debug(f"Cookie file found: {cookie_file}")
-                return True
-        _debug(f"No cookies found for {ai_id}")
-        return False
+            if not cookie_file.exists() or cookie_file.stat().st_size == 0:
+                continue
+            try:
+                import sqlite3
+                conn = sqlite3.connect(str(cookie_file))
+                cursor = conn.cursor()
+                now_chrome = int((time.time() + 11644473600) * 1_000_000)
+                # Build WHERE clause: domain match AND (any auth-name pattern OR any unexpired)
+                name_conditions = " OR ".join("name LIKE ?" for _ in auth_names)
+                params = [f"%{domain}%"]
+                params.extend(f"{p}%" for p in auth_names)
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM cookies "
+                    f"WHERE host_key LIKE ? AND is_persistent = 1 "
+                    f"AND ({name_conditions}) "
+                    f"AND (has_expires = 0 OR expires_utc > ?)",
+                    params + [now_chrome],
+                )
+                count = cursor.fetchone()[0]
+                conn.close()
+                if count > 0:
+                    _debug(f"{ai_id}: valid session ({count} auth cookies for {domain})")
+                    return SessionState.AUTHENTICATED
+                _debug(f"{ai_id}: cookie file exists but no valid cookies for {expected}")
+                return SessionState.AUTH_EXPIRED
+            except Exception as exc:
+                _debug(f"{ai_id}: cookie check error: {exc}")
+                # Fallback: size > 1KB is probably a real cookie store
+                if cookie_file.stat().st_size > 1024:
+                    return SessionState.AUTHENTICATED
+        _debug(f"{ai_id}: no cookies found")
+        return SessionState.UNKNOWN
 
     async def _quick_login_check(self, ai_id: str, page: Any) -> bool:
         """Quick check if user is already logged in (from previous session)."""
@@ -332,11 +519,23 @@ class EmbeddedEngine(BrowserEngine):
         """Get list of AIs with saved sessions."""
         return list(self._authenticated)
 
-    def check_all_sessions(self) -> dict[str, bool]:
-        """Check which AIs have saved cookie sessions."""
+    def get_session_state(self, ai_id: str) -> str:
+        """Get the current SessionState for an AI provider as a string."""
+        return self._session_states.get(ai_id, SessionState.UNKNOWN).value
+
+    def set_session_state(self, ai_id: str, state: SessionState) -> None:
+        """Update the session state for an AI provider at runtime."""
+        self._session_states[ai_id] = state
+        if state == SessionState.AUTHENTICATED:
+            self._authenticated.add(ai_id)
+        else:
+            self._authenticated.discard(ai_id)
+
+    def check_all_sessions(self) -> dict[str, str]:
+        """Check which AIs have valid sessions (SessionState string)."""
         result = {}
         for ai_id in ["deepseek", "qianwen", "gemini", "chatgpt", "mimo"]:
-            result[ai_id] = self._has_saved_cookies(ai_id)
+            result[ai_id] = self.get_session_state(ai_id)
         return result
 
     async def get_status(self) -> EngineStatus:

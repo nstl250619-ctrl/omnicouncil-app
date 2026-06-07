@@ -26,11 +26,11 @@ class RetryConfig:
 
 @dataclass(frozen=True)
 class SchedulerConfig:
-    max_concurrent_tasks: int = 2
+    max_concurrent_tasks: int = 5
     ai_min_interval_ms: int = 2000
-    default_timeout_ms: int = 120000
-    soft_timeout_ms: int = 60000
-    hard_timeout_ms: int = 180000
+    default_timeout_ms: int = 90000
+    soft_timeout_ms: int = 45000
+    hard_timeout_ms: int = 90000
     retry: RetryConfig = field(default_factory=RetryConfig)
 
 
@@ -71,11 +71,11 @@ def load_config(config_path: str | Path | None = None) -> AppConfig:
 
     scheduler_raw = raw.get("scheduler", {})
     scheduler = SchedulerConfig(
-        max_concurrent_tasks=scheduler_raw.get("max_concurrent_tasks", 2),
+        max_concurrent_tasks=scheduler_raw.get("max_concurrent_tasks", 5),
         ai_min_interval_ms=scheduler_raw.get("ai_min_interval_ms", 2000),
-        default_timeout_ms=scheduler_raw.get("default_timeout_ms", 120000),
-        soft_timeout_ms=scheduler_raw.get("soft_timeout_ms", 60000),
-        hard_timeout_ms=scheduler_raw.get("hard_timeout_ms", 180000),
+        default_timeout_ms=scheduler_raw.get("default_timeout_ms", 90000),
+        soft_timeout_ms=scheduler_raw.get("soft_timeout_ms", 45000),
+        hard_timeout_ms=scheduler_raw.get("hard_timeout_ms", 90000),
         retry=RetryConfig(**scheduler_raw.get("retry", {})),
     )
 

@@ -128,21 +128,9 @@ class AIAccessManager:
                 if cb:
                     cb.record_success()
                 self._rate_limiter.record(ai_id)
-                await self._event_bus.emit(
-                    "ai:task:completed",
-                    task_id=event_task_id,
-                    ai_id=ai_id,
-                    response=response,
-                )
             else:
                 if cb:
                     cb.record_failure()
-                await self._event_bus.emit(
-                    "ai:task:failed",
-                    task_id=event_task_id,
-                    ai_id=ai_id,
-                    error=response.error_message or "Unknown error",
-                )
             return response
         except Exception as e:
             if cb:

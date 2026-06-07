@@ -6,6 +6,7 @@ import Titlebar from './components/Titlebar';
 import { QueryInput } from './components/QueryInput';
 import { TabBar } from './components/TabBar';
 import { ResponsesTab } from './components/ResponsesTab';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ComparisonTab } from './components/ComparisonTab';
 import { ConsensusTab } from './components/ConsensusTab';
 import { ConflictTab } from './components/ConflictTab';
@@ -75,7 +76,11 @@ function App() {
       <QueryInput />
       <TabBar />
       <div className="tab-content">
-        {activeTab === 'responses' && <ResponsesTab />}
+        {activeTab === 'responses' && (
+          <ErrorBoundary>
+            <ResponsesTab />
+          </ErrorBoundary>
+        )}
         {activeTab === 'comparison' && <ComparisonTab />}
         {activeTab === 'consensus' && <ConsensusTab />}
         {activeTab === 'conflict' && <ConflictTab />}

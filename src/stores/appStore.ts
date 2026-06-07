@@ -87,6 +87,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   setConnectionStatus: (status) => set({ connectionStatus: status }),
 
   submitQuery: (query, aiIds) => {
+    // Guard: don't re-submit while a task is in progress
+    const state = get();
+    const hasRunning = Object.values(state.responses).some(
+      (r) => r.status === 'waiting' || r.status === 'streaming'
+    );
+    if (hasRunning) return;
+
     const responses: Record<string, AIResponseState> = {};
     aiIds.forEach((id) => {
       responses[id] = { ...createInitialResponse(), status: 'waiting' };
@@ -121,12 +128,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   handleMessage: (msg) => {
     const { type, data } = msg;
 
+    // WebSocket event isolation: only handle events for the task we initiated
+    // This prevents broadcasts from other clients (multi-tool, scripts) from
+    // corrupting our state
     switch (type) {
       case 'progress':
         set({ currentTaskId: data.task_id as string });
         break;
 
+      case 'task_created':
+        set({ currentTaskId: data.task_id as string });
+        break;
+
       case 'ai_started':
+        // Event isolation: only handle events for our own task
+        if (data.task_id && get().currentTaskId && data.task_id !== get().currentTaskId) break;
         set((state) => ({
           responses: {
             ...state.responses,
@@ -157,12 +173,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         break;
 
       case 'ai_completed':
+        if (data.task_id && get().currentTaskId && data.task_id !== get().currentTaskId) break;
         set((state) => ({
           responses: {
             ...state.responses,
             [data.ai_id as string]: {
               status: 'completed',
-              content: data.full_text as string,
+              content: (data.full_text as string) || '',  // Prevent undefined crash
               error: null,
               wordCount: data.word_count as number,
               elapsedMs: data.elapsed_ms as number,

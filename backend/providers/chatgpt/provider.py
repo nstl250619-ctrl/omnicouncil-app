@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import time
 from typing import Any
 
 from shared.errors import AILoginRequiredError
 
 from ..base import BaseProvider, ProviderConfig
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIProvider(BaseProvider):
@@ -30,7 +33,14 @@ class OpenAIProvider(BaseProvider):
 
         cfg = self.config()
         page = await self._engine.get_page(cfg.provider_id, cfg.chat_url)
-        await page.wait_for_timeout(3000)
+        # Wait longer for Cloudflare challenge to complete (non-headless)
+        for _ in range(8):
+            await page.wait_for_timeout(1000)
+            page_title = await page.title()
+            if "Just a moment" not in page_title and "challenge" not in page_title.lower():
+                break
+        else:
+            logger.warning("ChatGPT: page still showing Cloudflare after 8s wait")
 
         if not await self._is_logged_in(page):
             raise AILoginRequiredError(cfg.provider_id)
@@ -39,6 +49,27 @@ class OpenAIProvider(BaseProvider):
         if input_box is None:
             if await self._has_login_redirect(page):
                 raise AILoginRequiredError(cfg.provider_id)
+            # Diagnostic: capture page state when input box not found
+            try:
+                page_url = page.url
+                page_title = await page.title()
+                body_text = await page.locator("body").inner_text(timeout=2000)
+                body_preview = body_text[:500].replace("\n", " | ")
+                logger.warning(
+                    "ChatGPT input box not found. URL=%s title=%s body_preview=%s",
+                    page_url, page_title, body_preview,
+                )
+                # Detect Cloudflare challenge
+                if "Just a moment" in page_title or "challenge" in page_title.lower():
+                    logger.error(
+                        "ChatGPT: Cloudflare challenge detected. "
+                        "Page is blocked by Cloudflare. "
+                        "Suggestions: (1) re-login via visible browser in AI平台管理, "
+                        "(2) install Chrome on this system for better stealth."
+                    )
+            except Exception as diag_err:
+                logger.warning("ChatGPT diagnostic failed: %s", diag_err)
+
             raise RuntimeError("ChatGPT: could not find input box")
 
         await input_box.click()
@@ -64,6 +95,10 @@ class OpenAIProvider(BaseProvider):
             "#prompt-textarea",
             "[contenteditable='true']",
             "textarea",
+            "div[contenteditable='true']",
+            "[data-orientation='vertical'] textarea",
+            "main textarea",
+            "[role='textbox']",
         ]
         for sel in selectors:
             try:
@@ -76,13 +111,22 @@ class OpenAIProvider(BaseProvider):
 
     async def _is_logged_in(self, page: Any) -> bool:
         url = page.url
-        if "/auth/login" in url or "auth0.openai.com" in url:
+        if url in ("about:blank", "chrome://error/", "chrome://newtab/"):
+            return False
+        if "/auth/login" in url or "auth0.openai.com" in url or "/login" in url:
+            return False
+        # Cloudflare / challenge pages
+        try:
+            title = await page.title()
+            if "just a moment" in title.lower() or "cloudflare" in title.lower():
+                return False
+        except Exception:
             return False
         return True
 
     async def _has_login_redirect(self, page: Any) -> bool:
         url = page.url
-        return "/auth/login" in url or "auth0.openai.com" in url
+        return "/auth/login" in url or "auth0.openai.com" in url or "/login" in url
 
     async def _extract_response(self, page: Any, prompt: str, timeout_ms: int) -> str:
         idle_ms = 5000

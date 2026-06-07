@@ -1,17 +1,20 @@
 """XiaoMiMo provider implementation.
 
 XiaoMiMo is Xiaomi's AI assistant.
-Chat URL: https://mimo.xiaomi.com or similar.
+Chat URL: https://aistudio.xiaomimimo.com/#/
 """
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
 from shared.errors import AILoginRequiredError
 
 from ..base import BaseProvider, ProviderConfig
+
+logger = logging.getLogger(__name__)
 
 
 class XiaoMiMoProvider(BaseProvider):
@@ -20,8 +23,8 @@ class XiaoMiMoProvider(BaseProvider):
         return ProviderConfig(
             provider_id="mimo",
             display_name="MiMo",
-            login_url="https://mimo.xiaomi.com",
-            chat_url="https://mimo.xiaomi.com",
+            login_url="https://aistudio.xiaomimimo.com/#/",
+            chat_url="https://aistudio.xiaomimimo.com/#/",
             icon_color="#FF6900",
             icon_emoji="🟠",
         )
@@ -38,8 +41,23 @@ class XiaoMiMoProvider(BaseProvider):
         if not await self._is_logged_in(page):
             raise AILoginRequiredError(cfg.provider_id)
 
+        # Activate chat mode if on aistudio landing page
+        await self._activate_chat_mode(page)
+
         input_box = await self._find_input(page)
         if input_box is None:
+            # Diagnostic: capture page state when input box not found
+            try:
+                page_url = page.url
+                page_title = await page.title()
+                body_text = await page.locator("body").inner_text(timeout=2000)
+                body_preview = body_text[:500].replace("\n", " | ")
+                logger.warning(
+                    "MiMo input box not found. URL=%s title=%s body_preview=%s",
+                    page_url, page_title, body_preview,
+                )
+            except Exception as diag_err:
+                logger.warning("MiMo diagnostic failed: %s", diag_err)
             raise RuntimeError("MiMo: could not find input box")
 
         await input_box.click()
@@ -51,12 +69,35 @@ class XiaoMiMoProvider(BaseProvider):
 
         return await self._extract_response(page, prompt, timeout_ms)
 
+    async def _activate_chat_mode(self, page: Any) -> None:
+        """Activate the 'MiMo Chat' mode if on the aistudio landing page.
+
+        The aistudio landing page may default to a non-chat view.
+        Look for and click a 'MiMo Chat' / 'mimo chat' / '聊天' tab/button.
+        This is best-effort — if no matching element is found, proceed anyway.
+        """
+        mimo_chat_labels = ["mimo chat", "MiMo Chat", "MIMO Chat", "聊天", "对话"]
+        for label in mimo_chat_labels:
+            try:
+                btn = page.locator(f"button:has-text('{label}'), a:has-text('{label}'), [class*='tab']:has-text('{label}'), [role='tab']:has-text('{label}')").first
+                if await btn.is_visible(timeout=1000):
+                    logger.info("MiMo: clicking '%s' to activate chat mode", label)
+                    await btn.click()
+                    await page.wait_for_timeout(2000)
+                    return
+            except Exception:
+                continue
+        logger.info("MiMo: no chat mode button found, proceeding as-is")
+
     async def _find_input(self, page: Any) -> Any:
         selectors = [
             "[contenteditable='true'][role='textbox']",
             "[contenteditable='true']",
+            "div[contenteditable='true']",
             "textarea",
             "[role='textbox']",
+            "main textarea",
+            "main [contenteditable='true']",
         ]
         for sel in selectors:
             try:

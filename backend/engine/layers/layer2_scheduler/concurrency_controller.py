@@ -37,21 +37,18 @@ class ConcurrencyController:
 
     async def acquire(self, ai_id: str) -> None:
         """Wait until we can dispatch to this AI (concurrency + interval)."""
-        # Wait for a concurrency slot
-        await self._semaphore.acquire()
-
-        # Wait for per-AI interval
+        # Wait for per-AI interval BEFORE acquiring the semaphore
         async with self._lock:
             last = self._last_dispatch.get(ai_id, 0)
             elapsed_ms = (time.time() - last) * 1000
             if elapsed_ms < self._ai_min_interval_ms:
                 wait_s = (self._ai_min_interval_ms - elapsed_ms) / 1000
-                # Release semaphore during wait, re-acquire after
-                self._semaphore.release()
+                # Wait without releasing — prevents slot stealing
                 await asyncio.sleep(wait_s)
-                await self._semaphore.acquire()
 
-            self._last_dispatch[ai_id] = time.time()
+        # Wait for a concurrency slot (hold until done, never release mid-flight)
+        await self._semaphore.acquire()
+        self._last_dispatch[ai_id] = time.time()
 
     def release(self, ai_id: str | None = None) -> None:
         """Release a concurrency slot."""

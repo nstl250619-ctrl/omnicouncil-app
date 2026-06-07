@@ -116,3 +116,29 @@ def get_logger(name: str) -> logging.Logger:
     # Strip leading 'backend.' if present for cleaner names
     clean = name.removeprefix("backend.")
     return logging.getLogger(f"omnicouncil.{clean}")
+
+
+def patch_all_loggers() -> None:
+    """Redirect all engine/provider loggers under the omnicouncil handler tree.
+
+    Many engine modules (scheduler, ai_access, collector, providers, etc.)
+    use ``logging.getLogger(__name__)`` directly instead of
+    ``shared.logger.get_logger(__name__)``, so their log records go to
+    orphan loggers (e.g. ``engine.layers.*``) that aren't connected to the
+    ``omnicouncil`` file handler.
+
+    This function iterates all known loggers and reparents them so their
+    records propagate through the ``omnicouncil`` handler tree instead of
+    being discarded.
+    """
+    _ensure_configured()
+    omni = logging.getLogger("omnicouncil")
+    for name, logger in list(logging.root.manager.loggerDict.items()):
+        if not isinstance(logger, logging.Logger):
+            continue
+        if name.startswith("omnicouncil") or name == "root":
+            continue
+        # Reparent so the record flows through omnicouncil's handlers
+        logger.handlers.clear()
+        logger.parent = omni
+        logger.propagate = True

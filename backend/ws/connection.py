@@ -22,10 +22,13 @@ logger = get_logger(__name__)
 # ========== Connection Manager ==========
 
 class ConnectionManager:
-    """Manages WebSocket connections."""
+    """Manages WebSocket connections with task-scoped event routing."""
 
     def __init__(self):
         self.active_connections: list[WebSocket] = []
+        # Maps task_id to the set of WebSocket connections that initiated it.
+        # Used by send_task_event to route events only to the originating client.
+        self._task_owners: dict[str, set[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -35,10 +38,23 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+        # Clean up task ownership for this connection
+        for task_id in list(self._task_owners.keys()):
+            owners = self._task_owners.get(task_id)
+            if owners:
+                owners.discard(websocket)
+                if not owners:
+                    del self._task_owners[task_id]
         logger.info("WebSocket disconnected. Total: %d", len(self.active_connections))
 
+    def register_task(self, websocket: WebSocket, task_id: str) -> None:
+        """Associate a task_id with the WebSocket connection that created it."""
+        if task_id not in self._task_owners:
+            self._task_owners[task_id] = set()
+        self._task_owners[task_id].add(websocket)
+
     async def broadcast(self, message: dict):
-        """Send message to all connected clients."""
+        """Send message to all connected clients (system-wide events only)."""
         dead = []
         for connection in self.active_connections[:]:
             try:
@@ -48,6 +64,31 @@ class ConnectionManager:
                 dead.append(connection)
         for conn in dead:
             self.disconnect(conn)
+
+    async def send_task_event(self, message: dict, task_id: str | None = None):
+        """Send an event to the connection(s) that own the given task_id.
+
+        If the owning connection is gone (e.g. frontend HMR / tab switch),
+        falls back to a full ``broadcast()`` so events are never silently lost.
+        """
+        if task_id is None:
+            return await self.broadcast(message)
+        owners = self._task_owners.get(task_id)
+        if not owners:
+            # No registered owner — broadcast as safety net so browser clients
+            # that reconnected (HMR / tab switch) still receive the event.
+            logger.debug("Task %s: no registered owner, falling back to broadcast", task_id)
+            return await self.broadcast(message)
+        dead = []
+        for connection in list(owners):
+            try:
+                await connection.send_json(message)
+            except Exception as e:
+                logger.warning("Failed to send task event to WebSocket: %s", e)
+                dead.append(connection)
+        for conn in dead:
+            self.disconnect(conn)
+            owners.discard(conn)
 
     async def send_personal(self, websocket: WebSocket, message: dict):
         """Send message to a specific client."""
@@ -140,7 +181,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "type": "error", "data": {"error": "Invalid ai_ids", "recoverable": True}
                     })
                     continue
-                await handle_submit_query(payload)
+                await handle_submit_query(payload, websocket)
             elif msg_type == "cancel_task":
                 await handle_cancel_task(data.get("data", {}))
             elif msg_type == "get_status":
@@ -163,8 +204,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # ========== Message Handlers ==========
 
-async def handle_submit_query(data: dict):
-    """Handle query submission from frontend."""
+async def handle_submit_query(data: dict, websocket: WebSocket | None = None):
+    """Handle query submission from frontend with task-scoped routing."""
     state = _try_state()
     scheduler = state.scheduler if state else None
     collector = state.collector if state else None
@@ -189,15 +230,19 @@ async def handle_submit_query(data: dict):
 
     task_id = f"task_{uuid.uuid4().hex[:12]}"
 
+    # Register this connection as the task owner
+    if websocket:
+        ws_manager.register_task(websocket, task_id)
+
     logger.info("Task %s: submitting query to %s", task_id, ai_ids)
 
     if collector:
         collector.set_query(task_id, query, TaskMode.PARALLEL)
 
-    await ws_manager.broadcast({
+    await ws_manager.send_task_event({
         "type": "progress",
         "data": {"task_id": task_id, "completed": 0, "total": len(ai_ids), "current_ai": ""}
-    })
+    }, task_id=task_id)
 
     try:
         request = QueryRequest(
@@ -207,17 +252,17 @@ async def handle_submit_query(data: dict):
         )
         handle = await scheduler.submit_query(request)
 
-        await ws_manager.broadcast({
+        await ws_manager.send_task_event({
             "type": "task_created",
             "data": {"task_id": handle.task_id, "status": handle.status.value}
-        })
+        }, task_id=task_id)
 
     except Exception as e:
         logger.exception("Failed to submit query")
-        await ws_manager.broadcast({
+        await ws_manager.send_task_event({
             "type": "error",
             "data": {"task_id": task_id, "error": str(e), "recoverable": True, "code": "SUBMIT_FAILED"}
-        })
+        }, task_id=task_id)
 
 
 async def handle_cancel_task(data: dict):

@@ -35,6 +35,33 @@ def register_routes(app) -> None:
                 ai_status.append({"ai_id": s.ai_id, "status": s.status.value})
         return {"status": "ok", "version": "0.1.0", "timestamp": time.time(), "ais": ai_status}
 
+    @app.get("/metrics")
+    async def metrics():
+        """Prometheus-style metrics endpoint."""
+        from shared.metrics import MetricsCollector
+        mc = MetricsCollector.instance()
+        return mc.snapshot()
+
+    @app.get("/health/detailed")
+    async def health_detailed():
+        """Detailed per-AI health status."""
+        state = _try_state()
+        result = {"status": "ok", "providers": []}
+        if state and state.ai_manager:
+            from shared.types import SessionState
+            for s in state.ai_manager.get_ready_ais():
+                provider_info = {
+                    "ai_id": s.ai_id,
+                    "ai_name": s.ai_name,
+                    "status": s.status.value,
+                    "consecutive_failures": s.consecutive_failures,
+                }
+                # Add session state from browser engine if available
+                if state.browser_engine and hasattr(state.browser_engine, "get_session_state"):
+                    provider_info["session_state"] = state.browser_engine.get_session_state(s.ai_id)
+                result["providers"].append(provider_info)
+        return result
+
     @app.get("/api/sessions/status")
     async def get_sessions_status():
         """Check which AIs have saved login sessions."""
@@ -42,7 +69,11 @@ def register_routes(app) -> None:
         if not state or not state.browser_engine:
             return {"sessions": {}, "authenticated": []}
         sessions = state.browser_engine.check_all_sessions()
-        authenticated = state.browser_engine.get_authenticated_ais()
+        # Backward-compatible authenticated list: only truly valid sessions
+        authenticated = [
+            ai_id for ai_id, s in sessions.items()
+            if s == "authenticated"
+        ]
         return {"sessions": sessions, "authenticated": authenticated}
 
     @app.get("/api/sessions")
