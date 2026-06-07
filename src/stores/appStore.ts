@@ -4,7 +4,7 @@ import { create } from 'zustand';
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
 export type AIStatus = 'idle' | 'waiting' | 'streaming' | 'completed' | 'error';
-export type TabId = 'responses' | 'comparison' | 'consensus' | 'conflict' | 'review' | 'debate' | 'history';
+export type TabId = 'responses' | 'comparison' | 'consensus' | 'conflict' | 'judge' | 'review' | 'debate' | 'history';
 
 export interface AIResponseState {
   status: AIStatus;

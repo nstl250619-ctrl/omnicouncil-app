@@ -2,23 +2,46 @@
    OmniCouncil UI Design Spec V2.0
    ======================================== */
 
-/* CSS Variables */
+/* CSS Variables — OmniCouncil UI V3 */
 :root {
-  --bg-primary: #0B0E14;
-  --bg-card: #131720;
-  --bg-hover: #1A1F2E;
-  --border: #1E2433;
-  --text-primary: #E1E6F0;
-  --text-secondary: #6B7394;
-  --text-highlight: #FFFFFF;
-  --accent: #6C5CE7;
-  --success: #00D68F;
-  --warning: #FFAA00;
-  --error: #FF3D71;
-  --info: #0095FF;
-  --ai-deepseek: #4F8FFF;
-  --ai-gemini: #A78BFA;
-  --ai-qianwen: #F59E0B;
+  --bg-deep: #0a0a0c;
+  --bg-surface: #111114;
+  --bg-card: #18181c;
+  --bg-card-hover: #1e1e23;
+  --bg-inset: #0e0e11;
+  --border: #2a2a30;
+  --border-subtle: #1f1f24;
+  --accent: #d4a853;
+  --accent-dim: #b8923f;
+  --accent-glow: rgba(212,168,83,0.12);
+  --accent-glow-strong: rgba(212,168,83,0.25);
+  --green: #3ecf8e;
+  --green-glow: rgba(62,207,142,0.08);
+  --red: #ef4444;
+  --red-glow: rgba(239,68,68,0.08);
+  --amber: #f59e0b;
+  --amber-glow: rgba(245,158,11,0.08);
+  --blue: #3b82f6;
+  --blue-glow: rgba(59,130,246,0.08);
+  --purple: #8b5cf6;
+  --purple-glow: rgba(139,92,246,0.08);
+  --text-primary: #e8e4dc;
+  --text-secondary: #8a8690;
+  --text-muted: #5a5660;
+  /* Legacy aliases for gradual migration */
+  --bg-primary: var(--bg-deep);
+  --bg-hover: var(--bg-card-hover);
+  --text-highlight: var(--text-primary);
+  --success: var(--green);
+  --warning: var(--amber);
+  --error: var(--red);
+  --info: var(--blue);
+  --accent: var(--accent);
+  --ai-deepseek: #4d7cfe;
+  --ai-gemini: #8b5cf6;
+  --ai-qianwen: #f97316;
+  --ai-chatgpt: #10b981;
+  --ai-mimo: #ef4444;
 }
 
 /* Reset */
@@ -29,13 +52,24 @@
 }
 
 body {
-  background-color: var(--bg-primary);
+  background-color: var(--bg-deep);
   color: var(--text-primary);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Source Serif 4', serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
   min-height: 100vh;
+  position: relative;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 15% 20%, rgba(212,168,83,0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 80%, rgba(62,207,142,0.02) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 #root {
@@ -2072,6 +2106,15 @@ body {
 }
 
 /* ========================================
+   AI Icon Selector Tooltip
+   ======================================== */
+.ai-icon-tooltip {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+/* ========================================
    Animations
    ======================================== */
 @keyframes pulse {
@@ -2091,6 +2134,21 @@ body {
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(30px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* ========================================

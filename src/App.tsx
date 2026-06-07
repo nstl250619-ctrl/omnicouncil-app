@@ -2,35 +2,19 @@ import { useState, useEffect } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useAppStore } from './stores/appStore';
 import { useConfigStore } from './stores/configStore';
-import Titlebar from './components/Titlebar';
-import { QueryInput } from './components/QueryInput';
-import { TabBar } from './components/TabBar';
-import { ResponsesTab } from './components/ResponsesTab';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { ComparisonTab } from './components/ComparisonTab';
-import { ConsensusTab } from './components/ConsensusTab';
-import { ConflictTab } from './components/ConflictTab';
-import { HistoryView } from './components/HistoryView';
-import { StatusBar } from './components/StatusBar';
+import { PlatformSetupPage } from './pages/PlatformSetupPage';
+import { ConsolePage } from './pages/ConsolePage';
 import { AIPlatformManager } from './components/AIPlatformManager';
-import { Settings } from './components/Settings';
 import { ErrorToast } from './components/ErrorToast';
+
+type Page = 'platform-setup' | 'console';
 
 function App() {
   const { send } = useWebSocket();
-
-  const activeTab = useAppStore((s) => s.activeTab);
-  const connectionStatus = useAppStore((s) => s.connectionStatus);
-  const responses = useAppStore((s) => s.responses);
   const { isFirstLaunch, setupCompleted, completeSetup, loadConfig } = useConfigStore();
-  const [showSettings, setShowSettings] = useState(false);
-  const [showPlatformManager, setShowPlatformManager] = useState(false);
   const [configLoaded, setConfigLoaded] = useState(false);
+  const [currentPage, setCurrentPage] = useState<Page>('console');
   const [error, setError] = useState<{ message: string; recoverable: boolean; suggestion?: string } | null>(null);
-
-  // Compute titlebar status
-  const isRunning = Object.values(responses).some((r) => r.status === 'waiting' || r.status === 'streaming');
-  const titlebarStatus = isRunning ? '分析中...' : connectionStatus === 'connected' ? '就绪' : '未连接';
 
   // Listen for errors from WebSocket
   useEffect(() => {
@@ -57,7 +41,7 @@ function App() {
     loadConfig().then(() => setConfigLoaded(true));
   }, [loadConfig]);
 
-  // Show AI Platform Manager on first launch
+  // Show AI Platform Manager on first launch (legacy setup wizard)
   if (configLoaded && (isFirstLaunch || !setupCompleted)) {
     return (
       <AIPlatformManager
@@ -71,29 +55,11 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <Titlebar statusText={titlebarStatus} />
-      <QueryInput />
-      <TabBar />
-      <div className="tab-content">
-        {activeTab === 'responses' && (
-          <ErrorBoundary>
-            <ResponsesTab />
-          </ErrorBoundary>
-        )}
-        {activeTab === 'comparison' && <ComparisonTab />}
-        {activeTab === 'consensus' && <ConsensusTab />}
-        {activeTab === 'conflict' && <ConflictTab />}
-        {activeTab === 'history' && <HistoryView />}
-      </div>
-      <StatusBar />
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
-      {showPlatformManager && (
-        <AIPlatformManager
-          isSetupMode={false}
-          send={send}
-          onComplete={() => setShowPlatformManager(false)}
-        />
+    <div className="app-wrapper">
+      {currentPage === 'platform-setup' ? (
+        <PlatformSetupPage onNavigateToConsole={() => setCurrentPage('console')} />
+      ) : (
+        <ConsolePage onNavigateToPlatforms={() => setCurrentPage('platform-setup')} />
       )}
       {error && (
         <ErrorToast
