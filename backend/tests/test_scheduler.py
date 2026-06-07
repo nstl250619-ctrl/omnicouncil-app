@@ -28,6 +28,7 @@ class FakeAIManager:
             ProviderStatus(ai_id="deepseek", ai_name="DeepSeek", status=AIStatus.READY),
             ProviderStatus(ai_id="qianwen", ai_name="Qianwen", status=AIStatus.READY),
         ]
+        self._provider_manager = _FakeProviderManager()
 
     def get_ready_ais(self):
         return self._ais
@@ -38,6 +39,13 @@ class FakeAIManager:
             content=f"response from {ai_id}", model=ai_id,
             timestamp=time.time(), duration=1.0, word_count=3,
         )
+
+
+class _FakeProviderManager:
+    """Minimal provider manager mock for SchedulerCenter."""
+
+    def get(self, ai_id: str):
+        return None
 
 
 class TestSchedulerCenter:

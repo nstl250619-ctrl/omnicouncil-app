@@ -15,11 +15,13 @@ from shared.config import (
 class TestSchedulerConfig:
     def test_defaults(self):
         cfg = SchedulerConfig()
-        assert cfg.max_concurrent_tasks == 2
+        assert cfg.max_concurrent_tasks == 5
         assert cfg.ai_min_interval_ms == 2000
-        assert cfg.default_timeout_ms == 120000
-        assert cfg.soft_timeout_ms == 60000
-        assert cfg.hard_timeout_ms == 180000
+        assert cfg.default_timeout_ms == 90000
+        assert cfg.soft_timeout_ms == 45000
+        assert cfg.hard_timeout_ms == 90000
+        assert cfg.retry.max_retries == 2
+        assert cfg.retry.retry_delay_ms == 3000
 
     def test_frozen(self):
         cfg = SchedulerConfig()
@@ -67,7 +69,7 @@ class TestLoadConfig:
     def test_load_nonexistent_returns_defaults(self):
         cfg = load_config("/nonexistent/path.yaml")
         assert isinstance(cfg, AppConfig)
-        assert cfg.scheduler.max_concurrent_tasks == 2
+        assert cfg.scheduler.max_concurrent_tasks == 5
 
     def test_load_none_returns_defaults(self):
         cfg = load_config(None)
