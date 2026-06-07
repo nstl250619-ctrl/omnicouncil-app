@@ -24,7 +24,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgbm1 libasound2 libnss3 libxss1
+          sudo apt-get install -y libgbm1 libasound2t64 libnss3 libxss1
 
       - name: Cache pip
         uses: actions/cache@v4
@@ -88,7 +88,7 @@ jobs:
 
       - name: Setup
         run: |
-          sudo apt-get install -y libgbm1 libasound2 libnss3 libxss1
+          sudo apt-get install -y libgbm1 libasound2t64 libnss3 libxss1
           python -m venv .venv
           source .venv/bin/activate
           pip install -e .
@@ -123,16 +123,26 @@ jobs:
 
       - name: Verify each engine package installs independently
         run: |
+          # Install core first (dependency of all other engines)
+          python -m venv /tmp/test-venv
+          source /tmp/test-venv/bin/activate
+          pip install -e backend/packages/omnicounci1l-core -q
+          python -c "import omnicounci1l_core; print('core: OK')"
+          deactivate
+
           for pkg in backend/packages/*/; do
             if [ -f "$pkg/pyproject.toml" ]; then
               name=$(basename $pkg)
+              [ "$name" = "omnicounci1l-core" ] && continue
               echo "=== Verifying $name ==="
-              python -m venv /tmp/test-venv
-              source /tmp/test-venv/bin/activate
+              python -m venv /tmp/test-venv2
+              source /tmp/test-venv2/bin/activate
+              pip install -e backend/packages/omnicounci1l-core -q
               pip install -e "$pkg" -q
               import_name=$(echo "$name" | tr '-' '_')
               python -c "import $import_name; print('$name: OK')"
               deactivate
-              rm -rf /tmp/test-venv
+              rm -rf /tmp/test-venv2
             fi
           done
+          rm -rf /tmp/test-venv
