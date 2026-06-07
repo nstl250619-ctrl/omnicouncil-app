@@ -38,7 +38,12 @@ jobs:
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -e .
-          for d in packages/*/; do pip install -e "$d"; done
+          # Install core first (dependency of all other engine packages)
+          pip install -e packages/omnicounci1l-core
+          for d in packages/*/; do
+            [ "$(basename $d)" = "omnicounci1l-core" ] && continue
+            pip install -e "$d"
+          done
           pip install pytest pytest-asyncio pytest-cov httpx
 
       - name: Run unit tests with coverage
@@ -92,7 +97,11 @@ jobs:
           python -m venv .venv
           source .venv/bin/activate
           pip install -e .
-          for d in packages/*/; do pip install -e "$d"; done
+          pip install -e packages/omnicounci1l-core
+          for d in packages/*/; do
+            [ "$(basename $d)" = "omnicounci1l-core" ] && continue
+            pip install -e "$d"
+          done
 
       - name: Start backend for heartbeat check
         run: |
@@ -123,6 +132,18 @@ jobs:
 
       - name: Verify each engine package installs independently
         run: |
+          # Map directory name → Python module name
+          import_map() {
+            case "$1" in
+              comparison-engine) echo "omnicounci1l_comparison" ;;
+              consensus-engine)  echo "omnicounci1l_consensus" ;;
+              conflict-engine)   echo "omnicounci1l_conflict" ;;
+              judge-engine)      echo "omnicounci1l_judge" ;;
+              omnicounci1l-core) echo "omnicounci1l_core" ;;
+              *) echo "" ;;
+            esac
+          }
+
           # Install core first (dependency of all other engines)
           python -m venv /tmp/test-venv
           source /tmp/test-venv/bin/activate
@@ -134,12 +155,13 @@ jobs:
             if [ -f "$pkg/pyproject.toml" ]; then
               name=$(basename $pkg)
               [ "$name" = "omnicounci1l-core" ] && continue
-              echo "=== Verifying $name ==="
+              import_name=$(import_map "$name")
+              [ -z "$import_name" ] && echo "SKIP $name (unknown import)" && continue
+              echo "=== Verifying $name → $import_name ==="
               python -m venv /tmp/test-venv2
               source /tmp/test-venv2/bin/activate
               pip install -e backend/packages/omnicounci1l-core -q
               pip install -e "$pkg" -q
-              import_name=$(echo "$name" | tr '-' '_')
               python -c "import $import_name; print('$name: OK')"
               deactivate
               rm -rf /tmp/test-venv2
