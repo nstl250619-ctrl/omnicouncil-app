@@ -11,10 +11,24 @@ export async function navigateToConsole(page: Page): Promise<void> {
 
   // Check if we're on the AI Platform Manager (setup mode)
   const enterButton = page.locator('button:has-text("进入控制台")');
-  if (await enterButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await enterButton.click();
-    // Wait for main console to render
-    await page.waitForTimeout(2000);
+  const isOnSetup = await enterButton.isVisible({ timeout: 3000 }).catch(() => false);
+
+  if (isOnSetup) {
+    // Try clicking — button may be disabled if no platforms connected
+    const isDisabled = await enterButton.isDisabled().catch(() => false);
+    if (isDisabled) {
+      // Bypass setup via exposed Zustand store (DEV mode only)
+      await page.evaluate(() => {
+        const store = (window as unknown as Record<string, unknown>).__configStore;
+        if (store && typeof store === 'object' && 'getState' in store) {
+          (store as { getState: () => { completeSetup: (mode: string) => void } }).getState().completeSetup('embedded');
+        }
+      });
+      await page.waitForTimeout(1000);
+    } else {
+      await enterButton.click();
+      await page.waitForTimeout(2000);
+    }
   }
 
   // Wait for the app to fully settle
