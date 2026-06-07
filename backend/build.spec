@@ -40,8 +40,6 @@ a = Analysis(
         'engine.layers.layer2_scheduler.scheduler_center',
         'engine.layers.layer3_collector.result_collector',
         'engine.layers.layer4_comparison.comparison_engine',
-        'engine.layers.layer5_consensus.consensus_engine',
-        'engine.layers.layer6_conflict.conflict_engine',
         'shared.app_state',
         'shared.logger',
         'providers.base',

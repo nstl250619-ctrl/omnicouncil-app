@@ -16,7 +16,8 @@
       "icons/icon.icns"
     ],
     "resources": [
-      "resources/backend/**"
+      "resources/backend/*",
+      "resources/backend/**/*"
     ],
     "windows": {
       "nsis": {
