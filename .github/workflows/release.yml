@@ -42,17 +42,16 @@ jobs:
       - name: Install Python deps
         run: |
           cd backend
-          pip install -r requirements.txt
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build backend with PyInstaller
+        run: python scripts/build-backend.py
 
       - name: Install Node deps
         run: npm ci
 
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli
-
-      - name: Install Windows build tools
-        run: |
-          npm install -g @tauri-apps/cli
 
       - name: Build Tauri App
         run: npm run tauri build

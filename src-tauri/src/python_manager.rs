@@ -43,8 +43,12 @@ impl PythonManager {
         let script_path = self.get_script_path();
 
         let mut cmd = Command::new(&python_path);
-        cmd.arg(&script_path)
-            .arg("--port")
+        // If script_path is non-empty, use it as the first argument (dev mode with Python)
+        // Otherwise, the exe IS the backend (production mode with bundled backend)
+        if !script_path.is_empty() {
+            cmd.arg(&script_path);
+        }
+        cmd.arg("--port")
             .arg(self.port.to_string())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -139,7 +143,7 @@ impl PythonManager {
     }
 
     fn get_python_path(&self) -> String {
-        // In production, this points to the embedded Python
+        // In production, this points to the bundled backend executable
         // In development, use system Python
         if cfg!(debug_assertions) {
             if cfg!(target_os = "windows") {
@@ -155,17 +159,29 @@ impl PythonManager {
                 "python3".to_string()
             }
         } else {
-            // Production: embedded Python in the app bundle
+            // Production: bundled backend executable
             let exe_dir = std::env::current_exe()
                 .unwrap()
                 .parent()
                 .unwrap()
                 .to_path_buf();
 
-            if cfg!(target_os = "windows") {
-                exe_dir.join("python-runtime").join("python.exe").to_string_lossy().to_string()
+            // Look for the bundled backend in resources/backend/
+            let backend_exe = if cfg!(target_os = "windows") {
+                exe_dir.join("resources").join("backend").join("omnicouncil-backend.exe")
             } else {
-                exe_dir.join("python-runtime").join("bin").join("python3").to_string_lossy().to_string()
+                exe_dir.join("resources").join("backend").join("omnicouncil-backend")
+            };
+
+            if backend_exe.exists() {
+                backend_exe.to_string_lossy().to_string()
+            } else {
+                // Fallback: try python-runtime (legacy path)
+                if cfg!(target_os = "windows") {
+                    exe_dir.join("python-runtime").join("python.exe").to_string_lossy().to_string()
+                } else {
+                    exe_dir.join("python-runtime").join("bin").join("python3").to_string_lossy().to_string()
+                }
             }
         }
     }
@@ -182,14 +198,9 @@ impl PythonManager {
             let project_root = exe_dir.parent().unwrap().parent().unwrap().parent().unwrap();
             project_root.join("backend").join("main.py").to_string_lossy().to_string()
         } else {
-            // Production: bundled with the app
-            let exe_dir = std::env::current_exe()
-                .unwrap()
-                .parent()
-                .unwrap()
-                .to_path_buf();
-
-            exe_dir.join("engine").join("main.py").to_string_lossy().to_string()
+            // Production: bundled backend runs standalone (no script path needed)
+            // Return empty string — the backend exe handles everything
+            String::new()
         }
     }
 }

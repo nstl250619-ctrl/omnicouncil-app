@@ -15,6 +15,9 @@
       "icons/icon.ico",
       "icons/icon.icns"
     ],
+    "resources": [
+      "resources/backend/**"
+    ],
     "windows": {
       "nsis": {
         "installMode": "both"
