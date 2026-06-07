@@ -93,6 +93,11 @@ jobs:
         run: |
           cd backend
           pip install -r requirements.txt
+          pip install -e packages/omnicounci1l-core
+          for d in packages/*/; do
+            [ "$(basename $d)" = "omnicounci1l-core" ] && continue
+            pip install -e "$d"
+          done
 
       - name: Install Node deps
         run: npm ci
