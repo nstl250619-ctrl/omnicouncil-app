@@ -1,0 +1,118 @@
+diff --git a/backend/engine/contracts.py b/backend/engine/contracts.py
+index 844f432..b74dda8 100644
+--- a/backend/engine/contracts.py
++++ b/backend/engine/contracts.py
+@@ -153,6 +153,51 @@ class RuntimeHealth:
+         )
+ 
+ 
++@dataclass
++class RuntimeMetrics:
++    """Per-platform runtime counters — incremented on key paths.
++
++    These are mutable counters; collect via ``MetricsCollector`` for
++    Prometheus export.  Reset only at engine boot, never in steady state.
++    """
++
++    platform: str
++    page_created: int = 0
++    page_destroyed: int = 0
++    page_lease_acquired: int = 0
++    page_lease_released: int = 0
++    page_busy_rejections: int = 0
++    recovery_started: int = 0
++    recovery_succeeded: int = 0
++    recovery_failed: int = 0
++    recovery_aborted_busy: int = 0
++    session_expired: int = 0
++    query_total: int = 0
++    query_succeeded: int = 0
++    query_failed: int = 0
++    eviction_started: int = 0
++    eviction_completed: int = 0
++
++    def snapshot(self) -> dict[str, int]:
++        return {
++            "page_created": self.page_created,
++            "page_destroyed": self.page_destroyed,
++            "page_lease_acquired": self.page_lease_acquired,
++            "page_lease_released": self.page_lease_released,
++            "page_busy_rejections": self.page_busy_rejections,
++            "recovery_started": self.recovery_started,
++            "recovery_succeeded": self.recovery_succeeded,
++            "recovery_failed": self.recovery_failed,
++            "recovery_aborted_busy": self.recovery_aborted_busy,
++            "session_expired": self.session_expired,
++            "query_total": self.query_total,
++            "query_succeeded": self.query_succeeded,
++            "query_failed": self.query_failed,
++            "eviction_started": self.eviction_started,
++            "eviction_completed": self.eviction_completed,
++        }
++
++
+ @dataclass(frozen=True)
+ class QueryRequest:
+     """Input to ``QueryEngine.execute()``.
+@@ -217,6 +262,22 @@ class QueryState(StrEnum):
+     TIMEOUT = "timeout"
+ 
+ 
++class PageBusyState(StrEnum):
++    """Page lease state — orthogonal to RuntimeState.
++
++    The page can be in one of these sub-states at any time:
++      - IDLE:       no query holds the lease, no eviction pending
++      - LEASED:     a query holds the lease and is using the page
++      - RECOVERING: the runtime is in a recovery round
++      - EVICTING:   the page is being torn down and recreated
++    """
++
++    IDLE = "idle"
++    LEASED = "leased"
++    RECOVERING = "recovering"
++    EVICTING = "evicting"
++
++
+ # ============================================================
+ #  Section 4: Exception hierarchy
+ # ============================================================
+@@ -284,6 +345,38 @@ class ProfileError(RuntimeEngineError):
+         )
+ 
+ 
++class PageBusyError(RuntimeEngineError):
++    """Raised when the runtime page cannot be leased.
++
++    This happens when:
++      - Another query already holds the page lease.
++      - The runtime is currently in RECOVERING / EVICTING state.
++      - The lease acquisition exceeds the configured timeout.
++    """
++
++    def __init__(self, platform: str, reason: str) -> None:
++        self.platform = platform
++        super().__init__(
++            "PAGE_BUSY",
++            f"{platform}: page lease unavailable — {reason}",
++            recoverable=True,
++        )
++
++
++class RecoveryBusyError(RuntimeEngineError):
++    """Raised when a recovery round is aborted because the page is busy."""
++
++    def __init__(self, platform: str, waited_ms: int) -> None:
++        self.platform = platform
++        self.waited_ms = waited_ms
++        super().__init__(
++            "RECOVERY_BUSY",
++            f"{platform}: recovery aborted after waiting {waited_ms}ms — "
++            "page still leased by an active query",
++            recoverable=True,
++        )
++
++
+ class QueryEngineError(Exception):
+     """Base exception for all Query Engine errors."""
+ 

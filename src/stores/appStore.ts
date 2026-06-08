@@ -6,12 +6,44 @@ export type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
 export type AIStatus = 'idle' | 'waiting' | 'streaming' | 'completed' | 'error';
 export type TabId = 'responses' | 'comparison' | 'consensus' | 'conflict' | 'judge' | 'review' | 'debate' | 'history';
 
+export type RuntimeState =
+  | 'unknown'
+  | 'initializing'
+  | 'profile_loading'
+  | 'session_checking'
+  | 'ready'
+  | 'degraded'
+  | 'login_required'
+  | 'recovering'
+  | 'unavailable'
+  | 'shutdown';
+
 export interface RuntimeHealth {
-  state: 'healthy' | 'degraded' | 'unavailable' | 'login_required';
+  state: RuntimeState;
   browser_alive: boolean;
   page_alive: boolean;
   session_valid: boolean;
   last_heartbeat: number;
+  recovery_attempts?: number;
+  uptime_seconds?: number;
+}
+
+export interface RuntimeMetricsSnapshot {
+  page_created: number;
+  page_destroyed: number;
+  page_lease_acquired: number;
+  page_lease_released: number;
+  page_busy_rejections: number;
+  recovery_started: number;
+  recovery_succeeded: number;
+  recovery_failed: number;
+  recovery_aborted_busy: number;
+  session_expired: number;
+  query_total: number;
+  query_succeeded: number;
+  query_failed: number;
+  eviction_started: number;
+  eviction_completed: number;
 }
 
 export interface AIResponseState {
@@ -30,6 +62,40 @@ export interface AIProviderInfo {
   icon_emoji: string;
 }
 
+export interface ToastEntry {
+  id: number;
+  message: string;
+  severity: 'error' | 'warning' | 'success' | 'info';
+  autoHideMs?: number;
+}
+
+// ========== error_code → user-friendly message mapping ==========
+
+const ERROR_CODE_MESSAGES: Record<string, string> = {
+  PAGE_BUSY: 'AI 页面正被其他查询独占，正在同步状态，请稍后重试...',
+  RECOVERY_BUSY: 'AI 正在执行自动故障恢复，通道暂时锁定，请稍候...',
+  RUNTIME_NOT_READY: 'AI 运行引擎正在初始化，请稍候...',
+  CIRCUIT_OPEN: 'AI 连续失败过多，熔断器已触发，请稍后重试...',
+  RATE_LIMITED: '请求过于频繁，已被限流，请稍后重试...',
+  RUNTIME_NOT_FOUND: 'AI 运行时未找到，请检查平台配置...',
+  ADAPTER_NOT_FOUND: 'AI 适配器未找到，请检查平台配置...',
+  RUNTIME_ERROR: 'AI 运行时异常，请稍后重试...',
+  INTERNAL_ERROR: '内部错误，请稍后重试...',
+};
+
+function resolveErrorMessage(errorCode: string | undefined, fallback: string): string {
+  if (errorCode && ERROR_CODE_MESSAGES[errorCode]) {
+    return ERROR_CODE_MESSAGES[errorCode];
+  }
+  return fallback;
+}
+
+// ========== Toast ID counter ==========
+
+let _toastId = 0;
+
+// ========== AppState interface ==========
+
 export interface AppState {
   // Connection
   connectionStatus: ConnectionStatus;
@@ -42,6 +108,12 @@ export interface AppState {
 
   // Runtime health per AI (from /api/runtime/health)
   runtimeHealthMap: Record<string, RuntimeHealth>;
+
+  // Runtime metrics per AI (from /metrics/runtime)
+  runtimeMetricsMap: Record<string, RuntimeMetricsSnapshot>;
+
+  // Toast notifications
+  toasts: ToastEntry[];
 
   // Current task
   currentTaskId: string | null;
@@ -68,6 +140,9 @@ export interface AppState {
   resetResponses: () => void;
   updateRuntimeHealth: (aiId: string, health: RuntimeHealth) => void;
   setRuntimeHealthMap: (healthMap: Record<string, RuntimeHealth>) => void;
+  setRuntimeMetricsMap: (metricsMap: Record<string, RuntimeMetricsSnapshot>) => void;
+  addToast: (message: string, severity?: ToastEntry['severity'], autoHideMs?: number) => void;
+  removeToast: (id: number) => void;
 }
 
 // ========== Initial State ==========
@@ -88,6 +163,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   aiList: [],
   authStatus: {},
   runtimeHealthMap: {},
+  runtimeMetricsMap: {},
+  toasts: [],
   currentTaskId: null,
   query: '',
   selectedAIs: ['deepseek', 'qianwen'],
@@ -100,13 +177,35 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Actions
   setConnectionStatus: (status) => set({ connectionStatus: status }),
 
+  addToast: (message, severity = 'info', autoHideMs = 5000) => {
+    const id = ++_toastId;
+    set((state) => ({
+      toasts: [...state.toasts, { id, message, severity, autoHideMs }],
+    }));
+    if (autoHideMs > 0) {
+      setTimeout(() => {
+        get().removeToast(id);
+      }, autoHideMs);
+    }
+  },
+
+  removeToast: (id) => {
+    set((state) => ({
+      toasts: state.toasts.filter((t) => t.id !== id),
+    }));
+  },
+
   submitQuery: (query, aiIds) => {
     // Guard: don't re-submit while a task is in progress
     const state = get();
     const hasRunning = Object.values(state.responses).some(
       (r) => r.status === 'waiting' || r.status === 'streaming'
     );
-    if (hasRunning) return;
+    if (hasRunning) {
+      // P3: show toast instead of silent discard
+      get().addToast('请等待当前 AI 任务执行完成再提交新查询', 'warning', 3000);
+      return;
+    }
 
     const responses: Record<string, AIResponseState> = {};
     aiIds.forEach((id) => {
@@ -140,6 +239,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setRuntimeHealthMap: (healthMap) => {
     set({ runtimeHealthMap: healthMap });
+  },
+
+  setRuntimeMetricsMap: (metricsMap) => {
+    set({ runtimeMetricsMap: metricsMap });
   },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -211,18 +314,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         }));
         break;
 
-      case 'ai_failed':
+      case 'ai_failed': {
+        // P0: parse error_code and map to user-friendly message
+        const errorCode = data.error_code as string | undefined;
+        const rawError = (data.error as string) || '未知错误';
+        const friendlyMessage = resolveErrorMessage(errorCode, rawError);
+
         set((state) => ({
           responses: {
             ...state.responses,
             [data.ai_id as string]: {
               ...state.responses[data.ai_id as string],
               status: 'error',
-              error: data.error as string,
+              error: friendlyMessage,
             },
           },
         }));
         break;
+      }
 
       case 'all_completed':
         set({ currentTaskId: data.task_id as string });
@@ -296,7 +405,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           runtimeHealthMap: state.runtimeHealthMap[rsAiId]
             ? {
                 ...state.runtimeHealthMap,
-                [rsAiId]: { ...state.runtimeHealthMap[rsAiId], state: 'healthy', session_valid: true },
+                [rsAiId]: { ...state.runtimeHealthMap[rsAiId], state: 'ready', session_valid: true },
               }
             : state.runtimeHealthMap,
         }));

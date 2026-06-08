@@ -32,50 +32,51 @@ class TestSharedImports:
 
 
 # ---------------------------------------------------------------------------
-# 2. Browser engine
+# 2. Runtime Engine (V2)
 # ---------------------------------------------------------------------------
 
-class TestBrowserImports:
-    def test_engine_abc(self):
-        from browser.engine import BrowserEngine, EngineMode
-        assert EngineMode.EMBEDDED.value == "embedded"
-        assert EngineMode.CDP.value == "cdp"
-        assert hasattr(BrowserEngine, "connect")
+class TestRuntimeImports:
+    def test_runtime_engine(self):
+        from runtime.engine import AIRuntimeEngine
+        assert hasattr(AIRuntimeEngine, "boot")
+        assert hasattr(AIRuntimeEngine, "ensure_ready")
+        assert hasattr(AIRuntimeEngine, "get_page")
 
-    def test_factory(self):
-        from browser.factory import create_engine
-        assert callable(create_engine)
+    def test_runtime_registry(self):
+        from runtime.registry import RuntimeRegistry
+        assert hasattr(RuntimeRegistry, "register")
+        assert hasattr(RuntimeRegistry, "get")
+
+    def test_state_machine(self):
+        from runtime.state_machine import RuntimeStateMachine
+        assert hasattr(RuntimeStateMachine, "transition")
+
+    def test_recovery_engine(self):
+        from runtime.recovery_engine import RecoveryEngine
+        assert hasattr(RecoveryEngine, "recover")
 
 
 # ---------------------------------------------------------------------------
-# 3. Provider system
+# 3. Provider system (V2 Query Adapters)
 # ---------------------------------------------------------------------------
 
 class TestProviderImports:
-    def test_base_provider(self):
-        from providers.base.provider import BaseProvider
-        assert hasattr(BaseProvider, "check_login")
-        assert hasattr(BaseProvider, "send_prompt")
+    def test_base_query_adapter(self):
+        from providers.base.query_adapter import BaseQueryAdapter
+        assert hasattr(BaseQueryAdapter, "execute")
 
-    def test_registry(self):
-        from providers.registry.registry import ProviderRegistry
-        assert hasattr(ProviderRegistry, "register")
-        assert hasattr(ProviderRegistry, "get")
-
-    def test_all_providers_importable(self):
-        providers = [
-            "providers.deepseek.provider",
-            "providers.qianwen.provider",
-            "providers.gemini.provider",
-            "providers.chatgpt.provider",
-            "providers.claude.provider",
-            "providers.mimo.provider",
+    def test_all_query_adapters_importable(self):
+        adapters = [
+            "providers.deepseek.query_adapter",
+            "providers.qianwen.query_adapter",
+            "providers.gemini.query_adapter",
+            "providers.chatgpt.query_adapter",
+            "providers.mimo.query_adapter",
         ]
-        for mod_name in providers:
+        for mod_name in adapters:
             mod = __import__(mod_name, fromlist=["_"])
-            # Each module should expose at least one Provider class
-            classes = [v for v in dir(mod) if v.endswith("Provider") and v != "BaseProvider"]
-            assert len(classes) >= 1, f"{mod_name} has no Provider class"
+            classes = [v for v in dir(mod) if v.endswith("QueryAdapter")]
+            assert len(classes) >= 1, f"{mod_name} has no QueryAdapter class"
 
 
 # ---------------------------------------------------------------------------
@@ -101,12 +102,7 @@ class TestEngineLayerImports:
 
 
 # ---------------------------------------------------------------------------
-# 5. Session management
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# 6. Main app (import only, no server start)
+# 5. Main app (import only, no server start)
 # ---------------------------------------------------------------------------
 
 class TestMainImport:

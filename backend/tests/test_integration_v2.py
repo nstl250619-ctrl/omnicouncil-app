@@ -1,7 +1,7 @@
-"""Integration tests for V2 architecture — RuntimeRegistry + AIAccessManagerV2.
+"""Integration tests for V2 architecture — RuntimeRegistry + AIAccessManager.
 
 Tests verify the new call chain:
-    Scheduler → AIAccessManagerV2 → RuntimeRegistry → AIRuntimeEngine → QueryAdapter
+    Scheduler → AIAccessManager → RuntimeRegistry → AIRuntimeEngine → QueryAdapter
 
 Uses mock engines and adapters to avoid real browser operations.
 """
@@ -12,7 +12,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 from engine.contracts import QueryResult, QueryState, RuntimeState
-from engine.layers.layer1_ai_access.manager_v2 import AIAccessManagerV2
+from engine.layers.layer1_ai_access.manager import AIAccessManager
 from providers.base.query_adapter import QueryAdapterConfig
 from runtime.registry import RuntimeRegistry
 from shared.types import AIStatus, SubmitOptions
@@ -23,12 +23,26 @@ from shared.types import AIStatus, SubmitOptions
 
 
 def _mock_engine(state: RuntimeState = RuntimeState.READY):
+    """Build a mock AIRuntimeEngine that supports async ``acquire_page``.
+
+    The V2 manager now calls ``async with engine.acquire_page() as page``
+    instead of ``engine.get_page()``.  We expose a real async context
+    manager that yields a MagicMock Page.
+    """
+    from contextlib import asynccontextmanager
+
     engine = MagicMock()
     engine.state = state
     engine.ensure_ready = AsyncMock(return_value=state)
     page = MagicMock()
     page.is_closed.return_value = False
-    engine.get_page.return_value = page
+    engine._mock_page = page
+
+    @asynccontextmanager
+    async def acquire_page(*, timeout: float = 30.0):
+        yield page
+
+    engine.acquire_page = acquire_page
     return engine
 
 
@@ -125,18 +139,18 @@ class TestRuntimeRegistry:
 
 
 # ============================================================
-#  2. AIAccessManagerV2
+#  2. AIAccessManager
 # ============================================================
 
 
-class TestAIAccessManagerV2:
+class TestAIAccessManager:
 
     def test_send_to_ai_success(self):
         registry = RuntimeRegistry()
         engine = _mock_engine(RuntimeState.READY)
         registry.register("deepseek", engine)
         adapter = _mock_adapter(success=True)
-        manager = AIAccessManagerV2(
+        manager = AIAccessManager(
             runtime_registry=registry,
             query_adapters={"deepseek": adapter},
         )
@@ -147,7 +161,7 @@ class TestAIAccessManagerV2:
 
     def test_send_to_ai_runtime_not_found(self):
         registry = RuntimeRegistry()
-        manager = AIAccessManagerV2(
+        manager = AIAccessManager(
             runtime_registry=registry,
             query_adapters={},
         )
@@ -158,7 +172,7 @@ class TestAIAccessManagerV2:
     def test_send_to_ai_adapter_not_found(self):
         registry = RuntimeRegistry()
         registry.register("deepseek", _mock_engine())
-        manager = AIAccessManagerV2(
+        manager = AIAccessManager(
             runtime_registry=registry,
             query_adapters={},
         )
@@ -172,7 +186,7 @@ class TestAIAccessManagerV2:
         engine.ensure_ready = AsyncMock(return_value=RuntimeState.UNAVAILABLE)
         registry.register("deepseek", engine)
         adapter = _mock_adapter()
-        manager = AIAccessManagerV2(
+        manager = AIAccessManager(
             runtime_registry=registry,
             query_adapters={"deepseek": adapter},
         )
@@ -184,7 +198,7 @@ class TestAIAccessManagerV2:
         registry = RuntimeRegistry()
         registry.register("deepseek", _mock_engine())
         adapter = _mock_adapter(success=False)
-        manager = AIAccessManagerV2(
+        manager = AIAccessManager(
             runtime_registry=registry,
             query_adapters={"deepseek": adapter},
         )
@@ -199,7 +213,7 @@ class TestAIAccessManagerV2:
         adapter.config.return_value = QueryAdapterConfig(
             platform="test", display_name="Test", home_url="https://test.com"
         )
-        manager = AIAccessManagerV2(
+        manager = AIAccessManager(
             runtime_registry=registry,
             query_adapters={"deepseek": adapter, "gemini": adapter},
         )
@@ -213,7 +227,7 @@ class TestAIAccessManagerV2:
         engine = _mock_engine()
         registry.register("deepseek", engine)
         adapter = _mock_adapter(success=False)
-        manager = AIAccessManagerV2(
+        manager = AIAccessManager(
             runtime_registry=registry,
             query_adapters={"deepseek": adapter},
         )
@@ -227,7 +241,7 @@ class TestAIAccessManagerV2:
 
 
 # ============================================================
-#  3. End-to-end: Scheduler → AIAccessManagerV2 → Runtime → Query
+#  3. End-to-end: Scheduler → AIAccessManager → Runtime → Query
 # ============================================================
 
 
@@ -240,7 +254,7 @@ class TestEndToEnd:
         registry.register("deepseek", engine)
 
         adapter = _mock_adapter(success=True)
-        manager = AIAccessManagerV2(
+        manager = AIAccessManager(
             runtime_registry=registry,
             query_adapters={"deepseek": adapter},
         )
@@ -255,5 +269,4 @@ class TestEndToEnd:
         assert response.success is True
         assert response.content == "response"
         engine.ensure_ready.assert_called_once()
-        engine.get_page.assert_called_once()
         adapter.execute.assert_called_once()

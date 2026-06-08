@@ -1,4 +1,4 @@
-"""DeepSeek provider."""
-from .provider import DeepSeekProvider
+"""DeepSeek provider (V2 QueryAdapter)."""
+from .query_adapter import DeepSeekQueryAdapter
 
-__all__ = ["DeepSeekProvider"]
+__all__ = ["DeepSeekQueryAdapter"]

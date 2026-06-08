@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
-import { useAppStore, TabId, type RuntimeHealth } from '../stores/appStore';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useAppStore, TabId, type RuntimeState, type RuntimeMetricsSnapshot } from '../stores/appStore';
 import { useWebSocket } from '../hooks/useWebSocket';
 import Titlebar from '../components/Titlebar';
 import { AIIconSelector } from '../components/AIIconSelector';
@@ -20,6 +20,47 @@ const SIDEBAR_TABS = [
   { id: 'history' as TabId, label: '历史记录', icon: '📋' },
 ];
 
+// ========== P2: RuntimeState → UI display mapping ==========
+
+interface PlatformStatusDisplay {
+  label: string;
+  color: string;
+  glow: string;
+  pulse: boolean;
+}
+
+const RUNTIME_STATE_DISPLAY: Record<RuntimeState, PlatformStatusDisplay> = {
+  ready:            { label: '就绪',   color: 'var(--green)',  glow: 'rgba(62,207,142,0.4)',  pulse: false },
+  degraded:         { label: '降级',   color: 'var(--amber)',  glow: 'rgba(245,158,11,0.4)',  pulse: false },
+  recovering:       { label: '恢复中', color: 'var(--amber)',  glow: 'rgba(245,158,11,0.6)',  pulse: true },
+  login_required:   { label: '需登录', color: 'var(--red)',    glow: 'rgba(239,68,68,0.4)',   pulse: false },
+  unavailable:      { label: '不可用', color: 'var(--red)',    glow: 'rgba(239,68,68,0.4)',   pulse: false },
+  initializing:     { label: '启动中', color: '#3b82f6',       glow: 'rgba(59,130,246,0.4)',  pulse: true },
+  profile_loading:  { label: '加载中', color: '#3b82f6',       glow: 'rgba(59,130,246,0.4)',  pulse: true },
+  session_checking: { label: '检查中', color: '#3b82f6',       glow: 'rgba(59,130,246,0.4)',  pulse: true },
+  shutdown:         { label: '已关闭', color: 'var(--text-muted)', glow: 'transparent',       pulse: false },
+  unknown:          { label: '未知',   color: 'var(--text-muted)', glow: 'transparent',       pulse: false },
+};
+
+function getRuntimeStateDisplay(state: RuntimeState | undefined): PlatformStatusDisplay {
+  return RUNTIME_STATE_DISPLAY[state ?? 'unknown'] ?? RUNTIME_STATE_DISPLAY.unknown;
+}
+
+// ========== P1: /metrics/runtime polling ==========
+
+const METRICS_POLL_INTERVAL = 30_000; // 30s
+
+async function fetchRuntimeMetrics(): Promise<Record<string, RuntimeMetricsSnapshot> | null> {
+  try {
+    const res = await fetch('/metrics/runtime');
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.platforms ?? null;
+  } catch {
+    return null;
+  }
+}
+
 interface ConsolePageProps {
   onNavigateToPlatforms: () => void;
 }
@@ -32,6 +73,11 @@ export function ConsolePage({ onNavigateToPlatforms }: ConsolePageProps) {
   const responses = useAppStore((s) => s.responses);
   const submitQuery = useAppStore((s) => s.submitQuery);
   const connectionStatus = useAppStore((s) => s.connectionStatus);
+  const runtimeHealthMap = useAppStore((s) => s.runtimeHealthMap);
+  const runtimeMetricsMap = useAppStore((s) => s.runtimeMetricsMap);
+  const setRuntimeMetricsMap = useAppStore((s) => s.setRuntimeMetricsMap);
+  const toasts = useAppStore((s) => s.toasts);
+  const removeToast = useAppStore((s) => s.removeToast);
 
   const [query, setQuery] = useState('');
   const [selectedAIs, setSelectedAIs] = useState<string[]>(['deepseek', 'qianwen']);
@@ -39,6 +85,23 @@ export function ConsolePage({ onNavigateToPlatforms }: ConsolePageProps) {
   const isRunning = Object.values(responses).some(
     (r) => r.status === 'waiting' || r.status === 'streaming'
   );
+
+  // P1: Poll /metrics/runtime every 30s
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      const metrics = await fetchRuntimeMetrics();
+      if (!cancelled && metrics) {
+        setRuntimeMetricsMap(metrics);
+      }
+    };
+    poll(); // initial fetch
+    const interval = setInterval(poll, METRICS_POLL_INTERVAL);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [setRuntimeMetricsMap]);
 
   // Build AI list for icon selector
   const availableAIs = useMemo(() => {
@@ -64,16 +127,16 @@ export function ConsolePage({ onNavigateToPlatforms }: ConsolePageProps) {
     ];
   }, [aiList]);
 
-  // Platform status for sidebar (from runtime health)
-  const runtimeHealthMap = useAppStore((s) => s.runtimeHealthMap);
+  // P2: Platform status for sidebar — full 10-state mapping
   const platformStatuses = useMemo(() => {
     return availableAIs.map((ai) => {
       const rh = runtimeHealthMap[ai.id];
-      const state = rh?.state ?? 'unknown';
+      const state = rh?.state;
+      const display = getRuntimeStateDisplay(state);
       return {
         id: ai.id,
         name: ai.name,
-        status: state === 'healthy' ? 'connected' : state === 'degraded' ? 'idle' : 'disconnected',
+        ...display,
       };
     });
   }, [availableAIs, runtimeHealthMap]);
@@ -190,7 +253,7 @@ export function ConsolePage({ onNavigateToPlatforms }: ConsolePageProps) {
             🖥 AI 平台管理 →
           </div>
 
-          {/* Platform health status */}
+          {/* P2: Platform health status — full 10-state display */}
           <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border-subtle)' }}>
             <div
               style={{
@@ -223,24 +286,36 @@ export function ConsolePage({ onNavigateToPlatforms }: ConsolePageProps) {
                     height: 6,
                     borderRadius: '50%',
                     flexShrink: 0,
-                    background:
-                      p.status === 'connected'
-                        ? 'var(--green)'
-                        : p.status === 'idle'
-                        ? 'var(--amber)'
-                        : 'var(--red)',
-                    boxShadow:
-                      p.status === 'connected'
-                        ? '0 0 6px rgba(62,207,142,0.4)'
-                        : p.status === 'idle'
-                        ? '0 0 6px rgba(245,158,11,0.4)'
-                        : '0 0 6px rgba(239,68,68,0.4)',
+                    background: p.color,
+                    boxShadow: `0 0 6px ${p.glow}`,
+                    animation: p.pulse ? 'pulse 1.5s ease-in-out infinite' : 'none',
                   }}
                 />
-                {p.name}
+                <span>{p.name}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 9, opacity: 0.6 }}>{p.label}</span>
               </div>
             ))}
           </div>
+
+          {/* P1: Runtime metrics summary */}
+          {Object.keys(runtimeMetricsMap).length > 0 && (
+            <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border-subtle)' }}>
+              <div
+                style={{
+                  fontFamily: "'DM Mono', monospace",
+                  fontSize: 9,
+                  color: 'var(--text-muted)',
+                  lineHeight: 1.6,
+                }}
+              >
+                {Object.entries(runtimeMetricsMap).map(([platform, m]) => (
+                  <div key={platform} title={JSON.stringify(m, null, 2)}>
+                    {platform}: q={m.query_total} err={m.query_failed} evict={m.eviction_completed}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Main area */}
@@ -414,6 +489,60 @@ export function ConsolePage({ onNavigateToPlatforms }: ConsolePageProps) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* P3: Toast notifications */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 52,
+          right: 16,
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          pointerEvents: 'none',
+        }}
+      >
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            style={{
+              pointerEvents: 'auto',
+              background: t.severity === 'error' ? '#2d1b1b' : t.severity === 'warning' ? '#2d261b' : t.severity === 'success' ? '#1b2d1b' : '#1b2030',
+              border: `1px solid ${t.severity === 'error' ? 'var(--red)' : t.severity === 'warning' ? 'var(--amber)' : t.severity === 'success' ? 'var(--green)' : 'var(--border)'}`,
+              borderRadius: 8,
+              padding: '10px 16px',
+              fontFamily: "'DM Mono', monospace",
+              fontSize: 12,
+              color: 'var(--text-primary)',
+              maxWidth: 360,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              animation: 'fadeIn 0.2s ease-out',
+            }}
+          >
+            <span>
+              {t.severity === 'error' ? '⚠️' : t.severity === 'warning' ? '⚡' : t.severity === 'success' ? '✅' : 'ℹ️'}
+            </span>
+            <span style={{ flex: 1 }}>{t.message}</span>
+            <button
+              onClick={() => removeToast(t.id)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                fontSize: 14,
+                padding: '0 4px',
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -1,0 +1,229 @@
+diff --git a/backend/runtime/engine.py b/backend/runtime/engine.py
+index 370e383..321bed7 100644
+--- a/backend/runtime/engine.py
++++ b/backend/runtime/engine.py
+@@ -40,9 +40,13 @@ from engine.contracts import (
+     HealthMonitor as HealthMonitorProtocol,
+ )
+ from engine.contracts import (
++    PageBusyError,
++    PageBusyState,
+     PlatformConfig,
++    RecoveryBusyError,
+     RecoveryFailedError,
+     RuntimeHealth,
++    RuntimeMetrics,
+     RuntimeNotReadyError,
+     RuntimeState,
+     StateTransition,
+@@ -142,6 +146,22 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
+         # Watchdog task (ChatGPT visible window)
+         self._watchdog_task: asyncio.Task[None] | None = None
+ 
++        # === Page Lease / Concurrency control (Phase 3-5 remediation) ===
++        # Lock that serialises access to the cached page.  Acquired
++        # by acquire_page() (around QueryAdapter.execute), released on
++        # context exit.  ``_recovery_in_progress`` blocks new leases
++        # while a recovery round is running.  ``_pending_evict`` blocks
++        # new leases while a page teardown is in flight.
++        self._lease_lock: asyncio.Lock = asyncio.Lock()
++        self._recovery_in_progress: bool = False
++        self._query_ref_count: int = 0
++        self._pending_evict: bool = False
++        self._evict_task: asyncio.Task[None] | None = None
++        self._page_state: PageBusyState = PageBusyState.IDLE
++
++        # Per-platform metrics (exposed via /metrics/runtime)
++        self._metrics: RuntimeMetrics = RuntimeMetrics(platform=self._platform)
++
+     # ── Properties (from ABC) ──────────────────────────────
+ 
+     @property
+@@ -307,7 +327,13 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
+     # ── Core: get_page ─────────────────────────────────────
+ 
+     def get_page(self) -> Any:
+-        """Return the cached Playwright Page (only when READY)."""
++        """Return the cached Playwright Page (only when READY).
++
++        .. deprecated::
++            Prefer :meth:`acquire_page` — it is the only safe way to use
++            the page in V2.  Direct ``get_page()`` calls bypass the lease
++            and will race with eviction / recovery.
++        """
+         if self.state != RuntimeState.READY:
+             raise RuntimeNotReadyError(self.state)
+ 
+@@ -317,6 +343,93 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
+         self._page_last_used = time.time()
+         return self._page
+ 
++    # ── Core: acquire_page (Page Lease) ─────────────────────
++
++    @contextlib.asynccontextmanager
++    async def acquire_page(
++        self, *, timeout: float = 30.0
++    ):
++        """Lease the page to a single query (async context manager).
++
++        Behaviour:
++          - Refuses with :class:`PageBusyError` if the page is already
++            leased, the runtime is in recovery, or a pending eviction
++            is in flight.
++          - Waits up to ``timeout`` seconds for the lease to become
++            available before giving up.
++          - On exit (success or exception), releases the lease and
++            bumps ``_metrics.page_lease_released``.
++
++        Use as::
++
++            async with engine.acquire_page() as page:
++                await adapter.execute(page, prompt, options)
++        """
++        # Guard 1: recovery in progress — refuse all new leases
++        if self._recovery_in_progress:
++            self._metrics.page_busy_rejections += 1
++            raise PageBusyError(
++                self._platform, "runtime is under recovery"
++            )
++
++        # Guard 2: page being torn down — refuse all new leases
++        if self._pending_evict:
++            self._metrics.page_busy_rejections += 1
++            raise PageBusyError(
++                self._platform, "page is being evicted"
++            )
++
++        # Guard 3: state must be READY (mirrors get_page())
++        if self.state != RuntimeState.READY:
++            self._metrics.page_busy_rejections += 1
++            raise RuntimeNotReadyError(self.state)
++
++        # Acquire the lease (with timeout)
++        try:
++            await asyncio.wait_for(self._lease_lock.acquire(), timeout=timeout)
++        except asyncio.TimeoutError as exc:
++            self._metrics.page_busy_rejections += 1
++            raise PageBusyError(
++                self._platform,
++                f"lease acquisition timed out after {timeout:.1f}s",
++            ) from exc
++
++        # We hold the lease — bump ref count + metrics
++        self._query_ref_count += 1
++        self._metrics.page_lease_acquired += 1
++        self._page_state = PageBusyState.LEASED
++        self._page_last_used = time.time()
++        try:
++            yield self._page
++        finally:
++            self._query_ref_count = max(0, self._query_ref_count - 1)
++            self._metrics.page_lease_released += 1
++            if self._query_ref_count == 0 and not self._recovery_in_progress:
++                self._page_state = PageBusyState.IDLE
++            if self._lease_lock.locked():
++                self._lease_lock.release()
++
++    # ── Core: metrics ──────────────────────────────────────
++
++    def metrics(self) -> RuntimeMetrics:
++        """Return this engine's mutable metrics counters."""
++        return self._metrics
++
++    @property
++    def page_state(self) -> PageBusyState:
++        """Current sub-state of the page lease."""
++        return self._page_state
++
++    @property
++    def query_ref_count(self) -> int:
++        """Number of queries currently holding the page lease."""
++        return self._query_ref_count
++
++    @property
++    def recovery_in_progress(self) -> bool:
++        """True while a recovery round is running."""
++        return self._recovery_in_progress
++
+     # ── Core: check_health ─────────────────────────────────
+ 
+     async def check_health(self) -> RuntimeHealth:
+@@ -393,6 +506,7 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
+ 
+         self._page_created_at = time.time()
+         self._page_last_used = time.time()
++        self._metrics.page_created += 1
+ 
+         logger.info(
+             "%s: browser launched (headless=%s)", self._platform, self._config.headless
+@@ -420,7 +534,16 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
+     # ── Page management (from EmbeddedEngine) ──────────────
+ 
+     def _evict_stale_pages(self) -> int:
+-        """Evict cached page if too old or idle."""
++        """Evict cached page if too old or idle.
++
++        V2 contract: this method NEVER returns a page that is about to
++        be evicted.  The eviction is scheduled as a tracked task and
++        the ``_pending_evict`` flag is raised *before* scheduling, so
++        any new ``acquire_page()`` call is rejected until the eviction
++        completes.  This closes the historical race where
++        ``get_page()`` returned a page reference that was about to be
++        torn down by ``asyncio.ensure_future``.
++        """
+         if self._page is None:
+             return 0
+ 
+@@ -433,18 +556,44 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
+                 "%s: evicting stale page (age=%.0fs, idle=%.0fs)",
+                 self._platform, age, idle,
+             )
+-            asyncio.ensure_future(self._evict_page())
++            # Mark eviction in flight BEFORE creating the task.  This
++            # blocks new acquire_page() calls.
++            self._pending_evict = True
++            self._page_state = PageBusyState.EVICTING
++            self._metrics.eviction_started += 1
++            if self._evict_task is None or self._evict_task.done():
++                self._evict_task = asyncio.create_task(self._evict_page())
+             return 1
+         return 0
+ 
+     async def _evict_page(self) -> None:
+-        """Close and clear the cached page."""
+-        if self._page is not None:
+-            with contextlib.suppress(Exception):
+-                await self._page.close()
+-            self._page = None
+-        self._page_created_at = 0.0
+-        self._page_last_used = 0.0
++        """Close and clear the cached page (synchronous w.r.t. the caller).
++
++        Waits for any in-flight query to release its lease before
++        closing the page — this prevents the historical race where a
++        query was still using a page reference that was about to be
++        closed underneath it.
++        """
++        try:
++            # If a query is still using the page, wait for it to release
++            if self._lease_lock.locked():
++                # Query ref count > 0 means a query is active; we
++                # wait for the lease to be released.  Bounded to 5s.
++                deadline = time.time() + 5.0
++                while self._lease_lock.locked() and time.time() < deadline:
++                    await asyncio.sleep(0.05)
++            if self._page is not None:
++                with contextlib.suppress(Exception):
++                    await self._page.close()
++                self._page = None
++            self._page_created_at = 0.0
++            self._page_last_used = 0.0
++            self._metrics.page_destroyed += 1
++            self._metrics.eviction_completed += 1
++            if not self._recovery_in_progress:
++                self._page_state = PageBusyState.IDLE
++        finally:
++            self._pending_evict = False
+ 
+     # ── Watchdog (ChatGPT visible window) ──────────────────
+ 

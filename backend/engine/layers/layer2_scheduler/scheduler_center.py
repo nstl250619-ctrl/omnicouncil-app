@@ -153,7 +153,7 @@ class SchedulerCenter:
 
     async def _execute_task(self, task_id: str, query: str, ai_ids: list[str]) -> None:
         """Execute the task with per-AI timeout + non-destructive global timeout."""
-        cancel = self._cancel_events.get(task_id)
+        self._cancel_events.get(task_id)
 
         # Transition to RUNNING
         self._tasks[task_id] = TaskStatusInfo(
@@ -169,7 +169,7 @@ class SchedulerCenter:
         # Per-AI timeout: use scheduler's hard_timeout_ms if configured, else 90s
         per_ai_ms = self._timeout.hard_timeout_ms if self._timeout.hard_timeout_ms else 90000
         PER_AI_TIMEOUT = max(30, per_ai_ms // 1000)  # at least 30s
-        GLOBAL_TIMEOUT = PER_AI_TIMEOUT + 30  # when to trigger degradation
+        PER_AI_TIMEOUT + 30  # when to trigger degradation
 
         async def _send_one(ai_id: str):
             """Send to a single AI with per-AI timeout.

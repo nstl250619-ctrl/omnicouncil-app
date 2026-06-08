@@ -1,4 +1,4 @@
-"""Qianwen provider."""
-from .provider import QianwenProvider
+"""Qianwen provider (V2 QueryAdapter)."""
+from .query_adapter import QianwenQueryAdapter
 
-__all__ = ["QianwenProvider"]
+__all__ = ["QianwenQueryAdapter"]

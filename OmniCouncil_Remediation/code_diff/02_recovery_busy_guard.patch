@@ -1,0 +1,111 @@
+diff --git a/backend/runtime/recovery_engine.py b/backend/runtime/recovery_engine.py
+index 872f288..9f53ecf 100644
+--- a/backend/runtime/recovery_engine.py
++++ b/backend/runtime/recovery_engine.py
+@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
+ from typing import TYPE_CHECKING, Any
+ 
+ from engine.contracts import (
++    PageBusyError,
++    RecoveryBusyError,
+     RecoveryFailedError,
+     RuntimeState,
+ )
+@@ -117,6 +119,14 @@ class RecoveryEngine:
+         and transitions to READY on success or UNAVAILABLE on total
+         failure.
+ 
++        Phase 4 remediation: before any strategy runs, the recovery
++        blocks until all in-flight queries have released the page
++        lease.  If the wait exceeds ``page_busy_timeout_s`` (default
++        5s), the round is aborted and ``recovery_aborted_busy`` is
++        incremented.  ``_recovery_in_progress`` is then flipped to
++        True, which causes new ``acquire_page()`` calls to raise
++        :class:`PageBusyError` instead of racing the recovery.
++
+         Args:
+             engine: The ``AIRuntimeEngine`` instance.
+             platform: Platform identifier.
+@@ -126,6 +136,7 @@ class RecoveryEngine:
+ 
+         Raises:
+             RecoveryFailedError: All strategies exhausted.
++            RecoveryBusyError: Page still leased after timeout.
+         """
+         # Check attempt limit
+         current_attempts = self._attempt_counts.get(platform, 0)
+@@ -138,6 +149,41 @@ class RecoveryEngine:
+             await self._emit_failure(engine, platform)
+             raise RecoveryFailedError(platform, current_attempts)
+ 
++        # === Phase 4 guard: page must not be leased by a query ===
++        # Wait for any in-flight query to release the page lease.
++        page_busy_timeout_s = 5.0
++        waited_ms = 0
++        deadline = time.time() + page_busy_timeout_s
++        while (
++            getattr(engine, "_lease_lock", None) is not None
++            and engine._lease_lock.locked()
++            and time.time() < deadline
++        ):
++            await asyncio.sleep(0.05)
++            waited_ms = int((time.time() - (deadline - page_busy_timeout_s)) * 1000)
++
++        if (
++            getattr(engine, "_lease_lock", None) is not None
++            and engine._lease_lock.locked()
++        ):
++            # Page still busy — abort this recovery round
++            logger.warning(
++                "%s: recovery aborted — page still leased after %.0fms",
++                platform, waited_ms,
++            )
++            metrics = getattr(engine, "_metrics", None)
++            if metrics is not None:
++                metrics.recovery_aborted_busy += 1
++                metrics.recovery_failed += 1
++            await self._emit_failure(engine, platform)
++            raise RecoveryBusyError(platform, waited_ms)
++
++        # Mark recovery in progress to block new acquire_page() calls
++        if getattr(engine, "_recovery_in_progress", False) is False:
++            engine._recovery_in_progress = True
++            if getattr(engine, "_metrics", None) is not None:
++                engine._metrics.recovery_started += 1
++
+         # Cooldown check
+         last_time = self._last_attempt_time.get(platform, 0)
+         elapsed = time.time() - last_time
+@@ -206,6 +252,10 @@ class RecoveryEngine:
+                     strategy.name,
+                     round_num,
+                 )
++                # Phase 4: clear recovery flag and bump success metric
++                engine._recovery_in_progress = False
++                if getattr(engine, "_metrics", None) is not None:
++                    engine._metrics.recovery_succeeded += 1
+                 return True
+ 
+         # All strategies failed
+@@ -229,6 +279,10 @@ class RecoveryEngine:
+                     RuntimeState.UNAVAILABLE,
+                     reason=f"all {self._max_attempts} recovery rounds failed",
+                 )
++            # Phase 4: clear flag and bump failure metric before raising
++            engine._recovery_in_progress = False
++            if getattr(engine, "_metrics", None) is not None:
++                engine._metrics.recovery_failed += 1
+             raise RecoveryFailedError(platform, self._max_attempts)
+ 
+         # Still have attempts left — transition back to DEGRADED
+@@ -238,6 +292,10 @@ class RecoveryEngine:
+                 reason=f"recovery round {round_num} failed, retrying",
+             )
+ 
++        # Phase 4: clear flag (failure but still have attempts)
++        engine._recovery_in_progress = False
++        if getattr(engine, "_metrics", None) is not None:
++            engine._metrics.recovery_failed += 1
+         return False
+ 
+     def reset(self, platform: str | None = None) -> None:

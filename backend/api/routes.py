@@ -4,7 +4,6 @@ Extracted from main.py — all @app.get / @app.post / @app.delete routes.
 """
 from __future__ import annotations
 
-import asyncio
 import time
 
 from fastapi import HTTPException
@@ -12,7 +11,6 @@ from fastapi import HTTPException
 from shared.app_state import AppState
 from shared.logger import get_logger
 from storage.local import LocalStorage
-from ws.connection import ws_manager
 
 logger = get_logger(__name__)
 
@@ -50,33 +48,6 @@ def _map_state(status: str) -> str:
     return _HEALTH_STATE_MAP.get(status, "unavailable")
 
 
-# ========== Background reauth helper ==========
-
-
-async def _do_reauth(ai_id: str, login_url: str, browser_engine) -> None:
-    """Run reauth in background and broadcast result via WebSocket."""
-    from shared.logger import get_logger as _gl
-    _log = _gl(__name__)
-    try:
-        _log.info("Reauth starting for %s at %s", ai_id, login_url)
-        success, error_msg = await browser_engine.login(ai_id, login_url)
-        if success:
-            await ws_manager.broadcast({
-                "type": "recovery_success",
-                "data": {"ai_id": ai_id, "message": f"{ai_id} 已自动恢复"},
-            })
-        else:
-            await ws_manager.broadcast({
-                "type": "session_expired",
-                "data": {"ai_id": ai_id, "message": f"{ai_id} 重认证失败: {error_msg}"},
-            })
-    except Exception as e:
-        await ws_manager.broadcast({
-            "type": "ai_unavailable",
-            "data": {"ai_id": ai_id, "message": f"{ai_id} 异常: {str(e)}"},
-        })
-
-
 def register_routes(app) -> None:
     """Register all HTTP routes on the FastAPI app."""
 
@@ -87,7 +58,7 @@ def register_routes(app) -> None:
         if state and state.ai_manager:
             for s in state.ai_manager.get_ready_ais():
                 ai_status.append({"ai_id": s.ai_id, "status": s.status.value})
-        return {"status": "ok", "version": "0.1.0", "timestamp": time.time(), "ais": ai_status}
+        return {"status": "ok", "version": "0.2.0", "timestamp": time.time(), "ais": ai_status}
 
     @app.get("/metrics")
     async def metrics():
@@ -96,37 +67,95 @@ def register_routes(app) -> None:
         mc = MetricsCollector.instance()
         return mc.snapshot()
 
+    @app.get("/metrics/runtime")
+    async def metrics_runtime():
+        """Per-platform RuntimeMetrics.
+
+        Aggregates ``RuntimeMetrics`` from every ``AIRuntimeEngine``
+        held by the active ``RuntimeRegistry``.
+        """
+        from engine.contracts import RuntimeMetrics
+
+        state = _try_state()
+        result: dict[str, dict[str, int]] = {}
+        if state is None:
+            return {"platforms": result, "timestamp": time.time()}
+
+        registry = getattr(state, "runtime_registry", None)
+        if registry is None:
+            return {"platforms": result, "timestamp": time.time()}
+
+        try:
+            engines = registry.all()
+        except Exception:
+            engines = list(getattr(registry, "_engines", {}).values())
+
+        for engine in engines:
+            try:
+                metrics_obj = engine.metrics()
+                if isinstance(metrics_obj, RuntimeMetrics):
+                    result[engine.platform] = metrics_obj.snapshot()
+            except Exception:
+                continue
+
+        return {"platforms": result, "timestamp": time.time()}
+
     @app.get("/health/detailed")
     async def health_detailed():
-        """Detailed per-AI health status."""
+        """Detailed per-AI health status using RuntimeRegistry."""
         state = _try_state()
         result = {"status": "ok", "providers": []}
-        if state and state.ai_manager:
-            for s in state.ai_manager.get_ready_ais():
+
+        registry = getattr(state, "runtime_registry", None) if state else None
+        if registry is None:
+            return result
+
+        for platform, engine in registry.get_all().items():
+            try:
+                health = await engine.check_health()
                 provider_info = {
-                    "ai_id": s.ai_id,
-                    "ai_name": s.ai_name,
-                    "status": s.status.value,
-                    "consecutive_failures": s.consecutive_failures,
+                    "ai_id": platform,
+                    "ai_name": platform,
+                    "state": health.state.value,
+                    "browser_alive": health.browser_alive,
+                    "page_alive": health.page_alive,
+                    "session_valid": health.session_valid,
+                    "last_heartbeat": health.last_heartbeat,
                 }
-                # Add session state from browser engine if available
-                if state.browser_engine and hasattr(state.browser_engine, "get_session_state"):
-                    provider_info["session_state"] = state.browser_engine.get_session_state(s.ai_id)
                 result["providers"].append(provider_info)
+            except Exception as exc:
+                logger.debug("health_detailed: %s failed: %s", platform, exc)
+                result["providers"].append({
+                    "ai_id": platform,
+                    "ai_name": platform,
+                    "state": "unavailable",
+                    "error": str(exc),
+                })
+
         return result
 
     @app.get("/api/sessions/status")
     async def get_sessions_status():
-        """Check which AIs have saved login sessions."""
+        """Check which AIs have valid sessions via RuntimeRegistry."""
         state = _try_state()
-        if not state or not state.browser_engine:
+        registry = getattr(state, "runtime_registry", None) if state else None
+        if registry is None:
             return {"sessions": {}, "authenticated": []}
-        sessions = state.browser_engine.check_all_sessions()
-        # Backward-compatible authenticated list: only truly valid sessions
-        authenticated = [
-            ai_id for ai_id, s in sessions.items()
-            if s == "authenticated"
-        ]
+
+        sessions: dict[str, str] = {}
+        authenticated: list[str] = []
+
+        for platform, engine in registry.get_all().items():
+            try:
+                health = await engine.check_health()
+                if health.session_valid:
+                    sessions[platform] = "authenticated"
+                    authenticated.append(platform)
+                else:
+                    sessions[platform] = health.state.value
+            except Exception:
+                sessions[platform] = "unknown"
+
         return {"sessions": sessions, "authenticated": authenticated}
 
     @app.get("/api/sessions")
@@ -164,46 +193,40 @@ def register_routes(app) -> None:
 
     @app.get("/api/runtime/health")
     async def runtime_health():
-        """Return RuntimeHealth for all AI platforms.
+        """Return RuntimeHealth for all AI platforms via RuntimeRegistry.
 
         Returns a dict keyed by ai_id, each value with:
         { state, browser_alive, page_alive, session_valid, last_heartbeat }
         """
         state = _try_state()
-        if not state or not state.ai_manager:
+        registry = getattr(state, "runtime_registry", None) if state else None
+        if registry is None:
             return {}
 
         health_map: dict[str, dict] = {}
-        now = time.time()
 
-        for s in state.ai_manager.get_ready_ais():
-            backend_status = s.status.value
-            health_map[s.ai_id] = {
-                "state": _map_state(backend_status),
-                "browser_alive": backend_status not in ("error", "circuit_open", "unavailable", "shutdown"),
-                "page_alive": backend_status not in ("error", "circuit_open", "unavailable", "shutdown"),
-                "session_valid": backend_status in ("ready", "busy"),
-                "last_heartbeat": s.last_check_at or now,
-            }
-
-        # Override with deeper provider_runtime health data when available
-        if state.provider_runtime:
+        for platform, engine in registry.get_all().items():
             try:
-                reports = await state.provider_runtime.health_check_all()
-                for pid, report in reports.items():
-                    if pid not in health_map:
-                        continue
-                    entry = health_map[pid]
-                    entry["session_valid"] = report.login_valid
-                    entry["state"] = _map_state(report.status.value)
-                    if report.checked_at:
-                        entry["last_heartbeat"] = report.checked_at
-                    # Derive browser/page aliveness from health status
-                    if report.status.value in ("failed",):
-                        entry["browser_alive"] = False
-                        entry["page_alive"] = False
+                health = await engine.check_health()
+                health_map[platform] = {
+                    "state": _map_state(health.state.value),
+                    "browser_alive": health.browser_alive,
+                    "page_alive": health.page_alive,
+                    "session_valid": health.session_valid,
+                    "last_heartbeat": health.last_heartbeat,
+                    "recovery_attempts": health.recovery_attempts,
+                    "uptime_seconds": health.uptime_seconds,
+                }
             except Exception as exc:
-                logger.warning("Failed to get runtime health reports: %s", exc)
+                logger.debug("runtime_health: %s failed: %s", platform, exc)
+                health_map[platform] = {
+                    "state": "unavailable",
+                    "browser_alive": False,
+                    "page_alive": False,
+                    "session_valid": False,
+                    "last_heartbeat": 0,
+                    "error": str(exc),
+                }
 
         return health_map
 
@@ -211,37 +234,49 @@ def register_routes(app) -> None:
 
     @app.post("/api/providers/{name}/reauth")
     async def reauth_provider(name: str):
-        """Trigger re-authentication / recovery for a provider."""
+        """Trigger recovery for a provider via RuntimeRegistry."""
         state = _try_state()
         if not state:
             raise HTTPException(503, "Backend not initialized")
 
-        browser_engine = state.browser_engine
-        provider_registry = state.provider_registry
+        registry = getattr(state, "runtime_registry", None)
+        if registry is None:
+            raise HTTPException(503, "Runtime registry not initialized")
 
-        if not browser_engine:
-            raise HTTPException(503, "Browser engine not initialized")
-
-        provider = provider_registry.get(name) if provider_registry else None
-        if not provider:
+        engine = registry.get(name)
+        if engine is None:
             raise HTTPException(404, f"Provider '{name}' not found")
 
-        cfg = provider.config()
-        asyncio.create_task(_do_reauth(name, cfg.login_url, browser_engine))
-
-        return {"status": "reauth_started", "provider": name}
+        try:
+            success = await engine.attempt_recovery()
+            if success:
+                return {"status": "recovery_succeeded", "provider": name}
+            else:
+                return {"status": "recovery_failed", "provider": name}
+        except Exception as exc:
+            raise HTTPException(500, f"Recovery failed for '{name}': {exc}")
 
     @app.delete("/api/providers/{name}")
     async def delete_provider(name: str):
-        """Delete / unregister a provider."""
+        """Unregister a provider via RuntimeRegistry."""
         state = _try_state()
-        if not state or not state.provider_runtime:
+        if not state:
             raise HTTPException(503, "Backend not initialized")
 
+        registry = getattr(state, "runtime_registry", None)
+        if registry is None:
+            raise HTTPException(503, "Runtime registry not initialized")
+
         try:
-            await state.provider_runtime.unregister(name)
+            engine = registry.get(name)
+            if engine is None:
+                raise HTTPException(404, f"Provider '{name}' not found")
+            await engine.shutdown()
+            registry.unregister(name)
             logger.info("Provider %s: deleted", name)
             return {"status": "deleted", "provider": name}
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(500, f"Failed to delete provider '{name}': {exc}")
 

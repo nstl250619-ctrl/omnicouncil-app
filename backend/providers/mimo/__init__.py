@@ -1,5 +1,4 @@
-"""XiaoMiMo provider package."""
+"""XiaoMiMo provider (V2 QueryAdapter)."""
+from .query_adapter import MiMoQueryAdapter
 
-from .provider import XiaoMiMoProvider
-
-__all__ = ["XiaoMiMoProvider"]
+__all__ = ["MiMoQueryAdapter"]

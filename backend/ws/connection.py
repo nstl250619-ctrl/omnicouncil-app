@@ -294,30 +294,49 @@ async def handle_get_status(websocket: WebSocket):
 
 
 async def handle_get_ais(websocket: WebSocket):
-    """Get list of all registered providers."""
+    """Get list of all registered providers via RuntimeRegistry."""
     state = _try_state()
-    provider_registry = state.provider_registry if state else None
-    if not provider_registry:
+    registry = getattr(state, "runtime_registry", None) if state else None
+    if not registry:
         await ws_manager.send_personal(websocket, {"type": "ai_list", "data": []})
         return
 
-    ais = provider_registry.get_configs()
+    ais = []
+    for platform in registry.get_platforms():
+        engine = registry.get(platform)
+        if engine:
+            ais.append({
+                "ai_id": platform,
+                "display_name": platform,
+                "state": engine.state.value if hasattr(engine, "state") else "unknown",
+            })
     await ws_manager.send_personal(websocket, {"type": "ai_list", "data": ais})
 
 
 async def handle_check_sessions(websocket: WebSocket):
-    """Check which AIs have saved login sessions."""
+    """Check which AIs have valid sessions via RuntimeRegistry."""
     state = _try_state()
-    browser_engine = state.browser_engine if state else None
-    if not browser_engine:
+    registry = getattr(state, "runtime_registry", None) if state else None
+    if not registry:
         await ws_manager.send_personal(websocket, {
             "type": "sessions_status",
             "data": {"sessions": {}}
         })
         return
 
-    sessions = browser_engine.check_all_sessions()
-    authenticated = browser_engine.get_authenticated_ais()
+    sessions: dict[str, str] = {}
+    authenticated: list[str] = []
+
+    for platform, engine in registry.get_all().items():
+        try:
+            health = await engine.check_health()
+            if health.session_valid:
+                sessions[platform] = "authenticated"
+                authenticated.append(platform)
+            else:
+                sessions[platform] = health.state.value
+        except Exception:
+            sessions[platform] = "unknown"
 
     await ws_manager.send_personal(websocket, {
         "type": "sessions_status",
@@ -330,7 +349,7 @@ async def handle_check_sessions(websocket: WebSocket):
 
 
 async def handle_reauth(data: dict):
-    """Handle re-authentication via the engine's login method."""
+    """Handle re-authentication via RuntimeRegistry recovery."""
     ai_id = data.get("ai_id")
     if not ai_id:
         return
@@ -338,60 +357,47 @@ async def handle_reauth(data: dict):
     logger.info("Reauth requested for %s", ai_id)
 
     state = _try_state()
-    provider_registry = state.provider_registry if state else None
-    browser_engine = state.browser_engine if state else None
+    registry = getattr(state, "runtime_registry", None) if state else None
 
-    provider = provider_registry.get(ai_id) if provider_registry else None
-    if not provider:
+    engine = registry.get(ai_id) if registry else None
+    if not engine:
         await ws_manager.broadcast({
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": f"未知的 AI: {ai_id}"}
         })
         return
 
-    cfg = provider.config()
-
     await ws_manager.broadcast({
         "type": "auth_status",
-        "data": {"ai_id": ai_id, "status": "connecting", "message": f"正在打开 {cfg.display_name} 登录窗口..."}
+        "data": {"ai_id": ai_id, "status": "connecting", "message": f"正在尝试恢复 {ai_id}..."}
     })
 
-    if not browser_engine:
-        await ws_manager.broadcast({
-            "type": "auth_status",
-            "data": {"ai_id": ai_id, "status": "failed", "message": "浏览器引擎未初始化"}
-        })
-        return
-
-    asyncio.create_task(_do_login(ai_id, cfg.login_url))
+    asyncio.create_task(_do_recovery(ai_id, engine))
 
 
-async def _do_login(ai_id: str, login_url: str):
-    """Run login in background and broadcast result."""
-    state = _try_state()
-    browser_engine = state.browser_engine if state else None
-
+async def _do_recovery(ai_id: str, engine):
+    """Run recovery in background and broadcast result."""
     try:
-        logger.info("Starting login for %s at %s", ai_id, login_url)
-        success, error_msg = await browser_engine.login(ai_id, login_url)
-        logger.info("Login result: success=%s, error=%s", success, error_msg)
+        logger.info("Starting recovery for %s", ai_id)
+        success = await engine.attempt_recovery()
+        logger.info("Recovery result for %s: success=%s", ai_id, success)
 
         if success:
             await ws_manager.broadcast({
                 "type": "auth_status",
-                "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
+                "data": {"ai_id": ai_id, "status": "authenticated", "message": "恢复成功"}
             })
             logger.info("Broadcasted authenticated for %s", ai_id)
         else:
             await ws_manager.broadcast({
                 "type": "auth_status",
-                "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {error_msg}"}
+                "data": {"ai_id": ai_id, "status": "failed", "message": "恢复失败"}
             })
-            logger.warning("Broadcasted failed for %s: %s", ai_id, error_msg)
+            logger.warning("Broadcasted recovery failed for %s", ai_id)
     except Exception as e:
         tb = traceback.format_exc()
-        logger.error("LOGIN EXCEPTION for %s: %s\n%s", ai_id, e, tb)
+        logger.error("RECOVERY EXCEPTION for %s: %s\n%s", ai_id, e, tb)
         await ws_manager.broadcast({
             "type": "auth_status",
-            "data": {"ai_id": ai_id, "status": "failed", "message": f"登录异常: {str(e)}"}
+            "data": {"ai_id": ai_id, "status": "failed", "message": f"恢复异常: {str(e)}"}
         })

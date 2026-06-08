@@ -1,0 +1,2507 @@
+{
+  "rounds": [
+    {
+      "round": 0,
+      "platform": "deepseek",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 0,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 0,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 0,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 0,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 1,
+      "platform": "deepseek",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 1,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 1,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 1,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 1,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 2,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 2,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 2,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 2,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 2,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 3,
+      "platform": "deepseek",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 3,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 3,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 3,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 3,
+      "platform": "mimo",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 4,
+      "platform": "deepseek",
+      "duration_ms": 1.18
+    },
+    {
+      "round": 4,
+      "platform": "qianwen",
+      "duration_ms": 1.17
+    },
+    {
+      "round": 4,
+      "platform": "gemini",
+      "duration_ms": 1.17
+    },
+    {
+      "round": 4,
+      "platform": "chatgpt",
+      "duration_ms": 1.16
+    },
+    {
+      "round": 4,
+      "platform": "mimo",
+      "duration_ms": 1.16
+    },
+    {
+      "round": 5,
+      "platform": "deepseek",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 5,
+      "platform": "qianwen",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 5,
+      "platform": "gemini",
+      "duration_ms": 1.06
+    },
+    {
+      "round": 5,
+      "platform": "chatgpt",
+      "duration_ms": 1.06
+    },
+    {
+      "round": 5,
+      "platform": "mimo",
+      "duration_ms": 1.06
+    },
+    {
+      "round": 6,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 6,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 6,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 6,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 6,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 7,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 7,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 7,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 7,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 7,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 8,
+      "platform": "deepseek",
+      "duration_ms": 1.16
+    },
+    {
+      "round": 8,
+      "platform": "qianwen",
+      "duration_ms": 1.16
+    },
+    {
+      "round": 8,
+      "platform": "gemini",
+      "duration_ms": 1.16
+    },
+    {
+      "round": 8,
+      "platform": "chatgpt",
+      "duration_ms": 1.16
+    },
+    {
+      "round": 8,
+      "platform": "mimo",
+      "duration_ms": 1.15
+    },
+    {
+      "round": 9,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 9,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 9,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 9,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 9,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 10,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 10,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 10,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 10,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 10,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 11,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 11,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 11,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 11,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 11,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 12,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 12,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 12,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 12,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 12,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 13,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 13,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 13,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 13,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 13,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 14,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 14,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 14,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 14,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 14,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 15,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 15,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 15,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 15,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 15,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 16,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 16,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 16,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 16,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 16,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 17,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 17,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 17,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 17,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 17,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 18,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 18,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 18,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 18,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 18,
+      "platform": "mimo",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 19,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 19,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 19,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 19,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 19,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 20,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 20,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 20,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 20,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 20,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 21,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 21,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 21,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 21,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 21,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 22,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 22,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 22,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 22,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 22,
+      "platform": "mimo",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 23,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 23,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 23,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 23,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 23,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 24,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 24,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 24,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 24,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 24,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 25,
+      "platform": "deepseek",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 25,
+      "platform": "qianwen",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 25,
+      "platform": "gemini",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 25,
+      "platform": "chatgpt",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 25,
+      "platform": "mimo",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 26,
+      "platform": "deepseek",
+      "duration_ms": 1.15
+    },
+    {
+      "round": 26,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 26,
+      "platform": "gemini",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 26,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 26,
+      "platform": "mimo",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 27,
+      "platform": "deepseek",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 27,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 27,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 27,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 27,
+      "platform": "mimo",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 28,
+      "platform": "deepseek",
+      "duration_ms": 1.18
+    },
+    {
+      "round": 28,
+      "platform": "qianwen",
+      "duration_ms": 1.17
+    },
+    {
+      "round": 28,
+      "platform": "gemini",
+      "duration_ms": 1.16
+    },
+    {
+      "round": 28,
+      "platform": "chatgpt",
+      "duration_ms": 1.16
+    },
+    {
+      "round": 28,
+      "platform": "mimo",
+      "duration_ms": 1.16
+    },
+    {
+      "round": 29,
+      "platform": "deepseek",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 29,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 29,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 29,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 29,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 30,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 30,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 30,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 30,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 30,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 31,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 31,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 31,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 31,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 31,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 32,
+      "platform": "deepseek",
+      "duration_ms": 1.16
+    },
+    {
+      "round": 32,
+      "platform": "qianwen",
+      "duration_ms": 1.16
+    },
+    {
+      "round": 32,
+      "platform": "gemini",
+      "duration_ms": 1.15
+    },
+    {
+      "round": 32,
+      "platform": "chatgpt",
+      "duration_ms": 1.15
+    },
+    {
+      "round": 32,
+      "platform": "mimo",
+      "duration_ms": 1.15
+    },
+    {
+      "round": 33,
+      "platform": "deepseek",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 33,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 33,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 33,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 33,
+      "platform": "mimo",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 34,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 34,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 34,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 34,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 34,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 35,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 35,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 35,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 35,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 35,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 36,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 36,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 36,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 36,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 36,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 37,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 37,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 37,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 37,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 37,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 38,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 38,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 38,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 38,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 38,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 39,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 39,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 39,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 39,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 39,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 40,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 40,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 40,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 40,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 40,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 41,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 41,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 41,
+      "platform": "gemini",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 41,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 41,
+      "platform": "mimo",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 42,
+      "platform": "deepseek",
+      "duration_ms": 1.18
+    },
+    {
+      "round": 42,
+      "platform": "qianwen",
+      "duration_ms": 1.19
+    },
+    {
+      "round": 42,
+      "platform": "gemini",
+      "duration_ms": 1.18
+    },
+    {
+      "round": 42,
+      "platform": "chatgpt",
+      "duration_ms": 1.18
+    },
+    {
+      "round": 42,
+      "platform": "mimo",
+      "duration_ms": 1.17
+    },
+    {
+      "round": 43,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 43,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 43,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 43,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 43,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 44,
+      "platform": "deepseek",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 44,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 44,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 44,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 44,
+      "platform": "mimo",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 45,
+      "platform": "deepseek",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 45,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 45,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 45,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 45,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 46,
+      "platform": "deepseek",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 46,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 46,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 46,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 46,
+      "platform": "mimo",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 47,
+      "platform": "deepseek",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 47,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 47,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 47,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 47,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 48,
+      "platform": "deepseek",
+      "duration_ms": 1.15
+    },
+    {
+      "round": 48,
+      "platform": "qianwen",
+      "duration_ms": 1.15
+    },
+    {
+      "round": 48,
+      "platform": "gemini",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 48,
+      "platform": "chatgpt",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 48,
+      "platform": "mimo",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 49,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 49,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 49,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 49,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 49,
+      "platform": "mimo",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 50,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 50,
+      "platform": "qianwen",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 50,
+      "platform": "gemini",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 50,
+      "platform": "chatgpt",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 50,
+      "platform": "mimo",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 51,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 51,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 51,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 51,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 51,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 52,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 52,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 52,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 52,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 52,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 53,
+      "platform": "deepseek",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 53,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 53,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 53,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 53,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 54,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 54,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 54,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 54,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 54,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 55,
+      "platform": "deepseek",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 55,
+      "platform": "qianwen",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 55,
+      "platform": "gemini",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 55,
+      "platform": "chatgpt",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 55,
+      "platform": "mimo",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 56,
+      "platform": "deepseek",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 56,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 56,
+      "platform": "gemini",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 56,
+      "platform": "chatgpt",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 56,
+      "platform": "mimo",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 57,
+      "platform": "deepseek",
+      "duration_ms": 1.15
+    },
+    {
+      "round": 57,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 57,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 57,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 57,
+      "platform": "mimo",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 58,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 58,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 58,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 58,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 58,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 59,
+      "platform": "deepseek",
+      "duration_ms": 1.15
+    },
+    {
+      "round": 59,
+      "platform": "qianwen",
+      "duration_ms": 1.15
+    },
+    {
+      "round": 59,
+      "platform": "gemini",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 59,
+      "platform": "chatgpt",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 59,
+      "platform": "mimo",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 60,
+      "platform": "deepseek",
+      "duration_ms": 1.15
+    },
+    {
+      "round": 60,
+      "platform": "qianwen",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 60,
+      "platform": "gemini",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 60,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 60,
+      "platform": "mimo",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 61,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 61,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 61,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 61,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 61,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 62,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 62,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 62,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 62,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 62,
+      "platform": "mimo",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 63,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 63,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 63,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 63,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 63,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 64,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 64,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 64,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 64,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 64,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 65,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 65,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 65,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 65,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 65,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 66,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 66,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 66,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 66,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 66,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 67,
+      "platform": "deepseek",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 67,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 67,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 67,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 67,
+      "platform": "mimo",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 68,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 68,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 68,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 68,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 68,
+      "platform": "mimo",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 69,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 69,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 69,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 69,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 69,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 70,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 70,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 70,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 70,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 70,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 71,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 71,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 71,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 71,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 71,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 72,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 72,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 72,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 72,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 72,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 73,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 73,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 73,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 73,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 73,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 74,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 74,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 74,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 74,
+      "platform": "chatgpt",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 74,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 75,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 75,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 75,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 75,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 75,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 76,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 76,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 76,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 76,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 76,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 77,
+      "platform": "deepseek",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 77,
+      "platform": "qianwen",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 77,
+      "platform": "gemini",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 77,
+      "platform": "chatgpt",
+      "duration_ms": 1.06
+    },
+    {
+      "round": 77,
+      "platform": "mimo",
+      "duration_ms": 1.06
+    },
+    {
+      "round": 78,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 78,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 78,
+      "platform": "gemini",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 78,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 78,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 79,
+      "platform": "deepseek",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 79,
+      "platform": "qianwen",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 79,
+      "platform": "gemini",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 79,
+      "platform": "chatgpt",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 79,
+      "platform": "mimo",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 80,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 80,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 80,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 80,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 80,
+      "platform": "mimo",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 81,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 81,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 81,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 81,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 81,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 82,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 82,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 82,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 82,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 82,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 83,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 83,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 83,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 83,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 83,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 84,
+      "platform": "deepseek",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 84,
+      "platform": "qianwen",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 84,
+      "platform": "gemini",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 84,
+      "platform": "chatgpt",
+      "duration_ms": 1.06
+    },
+    {
+      "round": 84,
+      "platform": "mimo",
+      "duration_ms": 1.06
+    },
+    {
+      "round": 85,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 85,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 85,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 85,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 85,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 86,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 86,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 86,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 86,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 86,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 87,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 87,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 87,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 87,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 87,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 88,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 88,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 88,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 88,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 88,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 89,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 89,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 89,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 89,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 89,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 90,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 90,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 90,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 90,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 90,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 91,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 91,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 91,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 91,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 91,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 92,
+      "platform": "deepseek",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 92,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 92,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 92,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 92,
+      "platform": "mimo",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 93,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 93,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 93,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 93,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 93,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 94,
+      "platform": "deepseek",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 94,
+      "platform": "qianwen",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 94,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 94,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 94,
+      "platform": "mimo",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 95,
+      "platform": "deepseek",
+      "duration_ms": 1.14
+    },
+    {
+      "round": 95,
+      "platform": "qianwen",
+      "duration_ms": 1.13
+    },
+    {
+      "round": 95,
+      "platform": "gemini",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 95,
+      "platform": "chatgpt",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 95,
+      "platform": "mimo",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 96,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 96,
+      "platform": "qianwen",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 96,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 96,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 96,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 97,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 97,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 97,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 97,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 97,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 98,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 98,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 98,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 98,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 98,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 99,
+      "platform": "deepseek",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 99,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 99,
+      "platform": "gemini",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 99,
+      "platform": "chatgpt",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 99,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    }
+  ],
+  "successes": 500,
+  "failures": 0,
+  "recovery_rounds": 0
+}

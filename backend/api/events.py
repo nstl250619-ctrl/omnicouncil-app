@@ -284,7 +284,7 @@ async def run_conflict(task_id: str, round_ctx, comparison_ctx, consensus_report
                 },
             },
         })
-    except Exception as e:
+    except Exception:
         logger.exception("Conflict analysis failed for task %s", task_id)
 
 

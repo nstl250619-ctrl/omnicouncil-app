@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from shared.types import ProviderStatus
 
-    from providers.base.provider import BaseProvider as AIAdapter
+    from providers.base.query_adapter import BaseQueryAdapter as AIAdapter
 
 
 class ProviderManager:

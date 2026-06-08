@@ -1,0 +1,256 @@
+{
+  "rounds": [
+    {
+      "round": 0,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 0,
+      "platform": "qianwen",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 0,
+      "platform": "gemini",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 0,
+      "platform": "chatgpt",
+      "duration_ms": 1.12
+    },
+    {
+      "round": 0,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 1,
+      "platform": "deepseek",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 1,
+      "platform": "qianwen",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 1,
+      "platform": "gemini",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 1,
+      "platform": "chatgpt",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 1,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    },
+    {
+      "round": 2,
+      "platform": "deepseek",
+      "duration_ms": 1.11
+    },
+    {
+      "round": 2,
+      "platform": "qianwen",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 2,
+      "platform": "gemini",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 2,
+      "platform": "chatgpt",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 2,
+      "platform": "mimo",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 3,
+      "platform": "deepseek",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 3,
+      "platform": "qianwen",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 3,
+      "platform": "gemini",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 3,
+      "platform": "chatgpt",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 3,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 4,
+      "platform": "deepseek",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 4,
+      "platform": "qianwen",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 4,
+      "platform": "gemini",
+      "duration_ms": 1.06
+    },
+    {
+      "round": 4,
+      "platform": "chatgpt",
+      "duration_ms": 1.03
+    },
+    {
+      "round": 4,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 5,
+      "platform": "deepseek",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 5,
+      "platform": "qianwen",
+      "duration_ms": 1.05
+    },
+    {
+      "round": 5,
+      "platform": "gemini",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 5,
+      "platform": "chatgpt",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 5,
+      "platform": "mimo",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 6,
+      "platform": "deepseek",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 6,
+      "platform": "qianwen",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 6,
+      "platform": "gemini",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 6,
+      "platform": "chatgpt",
+      "duration_ms": 1.06
+    },
+    {
+      "round": 6,
+      "platform": "mimo",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 7,
+      "platform": "deepseek",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 7,
+      "platform": "qianwen",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 7,
+      "platform": "gemini",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 7,
+      "platform": "chatgpt",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 7,
+      "platform": "mimo",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 8,
+      "platform": "deepseek",
+      "duration_ms": 1.09
+    },
+    {
+      "round": 8,
+      "platform": "qianwen",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 8,
+      "platform": "gemini",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 8,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 8,
+      "platform": "mimo",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 9,
+      "platform": "deepseek",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 9,
+      "platform": "qianwen",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 9,
+      "platform": "gemini",
+      "duration_ms": 1.07
+    },
+    {
+      "round": 9,
+      "platform": "chatgpt",
+      "duration_ms": 1.08
+    },
+    {
+      "round": 9,
+      "platform": "mimo",
+      "duration_ms": 1.1
+    }
+  ],
+  "successes": 50,
+  "failures": 0
+}

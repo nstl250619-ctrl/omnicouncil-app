@@ -20,8 +20,7 @@ if TYPE_CHECKING:
     from engine.layers.layer1_ai_access.manager import AIAccessManager
     from engine.layers.layer2_scheduler.scheduler_center import SchedulerCenter
     from engine.layers.layer3_collector.result_collector import ResultCollector
-    from providers.registry import ProviderRegistry
-    from providers.runtime import ProviderRuntime
+    from runtime.registry import RuntimeRegistry
     from shared.event_bus import EventBus
     from storage.local import LocalStorage
 
@@ -43,9 +42,7 @@ class AppState:
         self.consensus_engine: ConsensusEngine | None = None
         self.conflict_engine: ConflictEngine | None = None
         self.judge_engine: JudgeEngine | None = None
-        self.browser_engine = None
-        self.provider_registry: ProviderRegistry | None = None
-        self.provider_runtime: ProviderRuntime | None = None
+        self.runtime_registry: RuntimeRegistry | None = None
         self.storage: LocalStorage | None = None
 
     @classmethod
@@ -71,7 +68,6 @@ class AppState:
             cls._singleton.scheduler = None
             cls._singleton.collector = None
             cls._singleton.comparison_engine = None
-            cls._singleton.browser_engine = None
-            cls._singleton.provider_registry = None
+            cls._singleton.runtime_registry = None
             cls._singleton.storage = None
         cls._singleton = None

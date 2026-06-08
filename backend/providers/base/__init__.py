@@ -1,4 +1,4 @@
-"""Base provider classes."""
-from .provider import BaseProvider, ProviderConfig
+"""Base query adapter classes (V2)."""
+from .query_adapter import BaseQueryAdapter, QueryAdapterConfig
 
-__all__ = ["BaseProvider", "ProviderConfig"]
+__all__ = ["BaseQueryAdapter", "QueryAdapterConfig"]

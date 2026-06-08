@@ -1,0 +1,48 @@
+diff --git a/backend/api/routes.py b/backend/api/routes.py
+index 51cd75d..179e8cb 100644
+--- a/backend/api/routes.py
++++ b/backend/api/routes.py
+@@ -96,6 +96,43 @@ def register_routes(app) -> None:
+         mc = MetricsCollector.instance()
+         return mc.snapshot()
+ 
++    @app.get("/metrics/runtime")
++    async def metrics_runtime():
++        """Per-platform RuntimeMetrics — Phase 7 of remediation.
++
++        Aggregates ``RuntimeMetrics`` from every ``AIRuntimeEngine``
++        held by the active ``RuntimeRegistry`` (or, as a fallback, by
++        ``AppState.ai_manager``).  Returns a JSON document with one
++        entry per platform, suitable for Prometheus scraping.
++        """
++        from engine.contracts import RuntimeMetrics
++
++        state = _try_state()
++        result: dict[str, dict[str, int]] = {}
++        if state is None:
++            return {"platforms": result, "timestamp": time.time()}
++
++        # Try to find a RuntimeRegistry.  V2 main.py stores it on the
++        # AppState singleton; we accept multiple keys for compatibility.
++        registry = getattr(state, "runtime_registry", None)
++        if registry is None:
++            return {"platforms": result, "timestamp": time.time()}
++
++        try:
++            engines = registry.all()  # type: ignore[attr-defined]
++        except Exception:
++            engines = list(getattr(registry, "_engines", {}).values())
++
++        for engine in engines:
++            try:
++                metrics_obj = engine.metrics()
++                if isinstance(metrics_obj, RuntimeMetrics):
++                    result[engine.platform] = metrics_obj.snapshot()
++            except Exception:
++                continue
++
++        return {"platforms": result, "timestamp": time.time()}
++
+     @app.get("/health/detailed")
+     async def health_detailed():
+         """Detailed per-AI health status."""

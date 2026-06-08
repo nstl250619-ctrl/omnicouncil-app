@@ -1,20 +1,17 @@
-"""OmniCouncil FastAPI + WebSocket Backend.
+"""OmniCouncil FastAPI + WebSocket Backend — V2 with Runtime + Query Engine.
 
-This is the application entry point. It owns:
-- FastAPI app creation and middleware
-- Lifespan (initialization / shutdown of all engine components)
-- Mounting routes and WebSocket from submodules
+This is the new application entry point that integrates:
+    - ``RuntimeRegistry`` — maps platforms to ``AIRuntimeEngine`` instances
+    - ``AIAccessManager`` — uses RuntimeRegistry + QueryAdapter
+    - ``HealthMonitor`` — replaces ``SessionManager`` and watchdog
+    - ``QueryAdapter`` per platform — replaces old ``BaseProvider``
 
-All business logic lives in:
-- api/routes.py    — HTTP endpoints
-- api/events.py    — Engine → WebSocket event handlers
-- ws/connection.py — WebSocket manager and message handlers
+The old ``main.py`` remains for backward compatibility during migration.
 """
 
 from __future__ import annotations
 
 import argparse
-import asyncio
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -37,12 +34,18 @@ from typing import TYPE_CHECKING
 
 from api.events import register_events
 from api.routes import register_routes
-from browser.factory import create_engine
+from engine.contracts import PlatformConfig
 from engine.layers.layer1_ai_access.manager import AIAccessManager
 from engine.layers.layer2_scheduler.scheduler_center import SchedulerCenter
 from engine.layers.layer3_collector.result_collector import ResultCollector
 from omnicounci1l_comparison import ComparisonEngine
-from providers.registry import create_default_registry
+from providers.chatgpt.query_adapter import ChatGPTQueryAdapter
+from providers.deepseek.query_adapter import DeepSeekQueryAdapter
+from providers.gemini.query_adapter import GeminiQueryAdapter
+from providers.mimo.query_adapter import MiMoQueryAdapter
+from providers.qianwen.query_adapter import QianwenQueryAdapter
+from runtime.engine import AIRuntimeEngine
+from runtime.registry import RuntimeRegistry
 from shared.app_state import AppState
 from shared.config import load_config
 from shared.event_bus import EventBus
@@ -56,13 +59,77 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+# ========== Platform configurations ==========
+
+PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
+    "deepseek": PlatformConfig(
+        name="deepseek",
+        home_url="https://chat.deepseek.com",
+        headless=True,
+        heartbeat_interval_s=60,
+        max_recovery_attempts=3,
+        recovery_cooldown_s=30,
+        session_check_mode="offline_then_online",
+    ),
+    "qianwen": PlatformConfig(
+        name="qianwen",
+        home_url="https://www.qianwen.com/qianwen",
+        headless=True,
+        heartbeat_interval_s=60,
+        max_recovery_attempts=3,
+        recovery_cooldown_s=30,
+        session_check_mode="offline_then_online",
+    ),
+    "gemini": PlatformConfig(
+        name="gemini",
+        home_url="https://gemini.google.com/app",
+        headless=True,
+        heartbeat_interval_s=60,
+        max_recovery_attempts=3,
+        recovery_cooldown_s=30,
+        session_check_mode="offline_then_online",
+    ),
+    "chatgpt": PlatformConfig(
+        name="chatgpt",
+        home_url="https://chatgpt.com",
+        headless=False,  # ChatGPT needs non-headless for Cloudflare
+        heartbeat_interval_s=60,
+        max_recovery_attempts=3,
+        recovery_cooldown_s=30,
+        session_check_mode="offline_then_online",
+    ),
+    "mimo": PlatformConfig(
+        name="mimo",
+        home_url="https://aistudio.xiaomimimo.com/#/",
+        headless=True,
+        heartbeat_interval_s=60,
+        max_recovery_attempts=3,
+        recovery_cooldown_s=30,
+        session_check_mode="offline_then_online",
+    ),
+}
+
+
+# ========== Query adapters ==========
+
+def _create_query_adapters() -> dict:
+    """Create query adapters for all platforms."""
+    return {
+        "deepseek": DeepSeekQueryAdapter(),
+        "qianwen": QianwenQueryAdapter(),
+        "gemini": GeminiQueryAdapter(),
+        "chatgpt": ChatGPTQueryAdapter(),
+        "mimo": MiMoQueryAdapter(),
+    }
+
+
 # ========== App Lifecycle ==========
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     state = AppState.create()
 
-    logger.info("Starting OmniCouncil backend...")
+    logger.info("Starting OmniCouncil backend (V2)...")
 
     # Redirect all engine/provider loggers under the omnicouncil handler tree
     from shared.logger import patch_all_loggers
@@ -72,37 +139,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize config
     config = load_config()
 
-    # Initialize Browser Engine
-    browser_mode = "embedded"
-    state.browser_engine = create_engine(browser_mode, headless=True)
-    connected = await state.browser_engine.connect()
-    logger.info("Browser engine: %s (connected=%s)", browser_mode, connected)
+    # Initialize RuntimeRegistry
+    runtime_registry = RuntimeRegistry()
+    state.runtime_registry = runtime_registry
 
-    # Start visible-window watchdog for headless=False contexts (ChatGPT)
-    asyncio.create_task(state.browser_engine._watchdog_visible_windows())
-    logger.info("Browser watchdog started")
+    # Create and register Runtime Engines for each platform
+    for platform, platform_config in PLATFORM_CONFIGS.items():
+        engine = AIRuntimeEngine(config=platform_config)
+        runtime_registry.register(platform, engine)
+    logger.info("Runtime engines registered: %s", runtime_registry.get_platforms())
 
-    # Initialize Provider Runtime OS
-    from providers.runtime import ProviderRuntime
-    state.provider_runtime = ProviderRuntime()
+    # Boot all runtimes (parallel)
+    boot_results = await runtime_registry.ensure_all_ready()
+    for platform, result in boot_results.items():
+        logger.info("  %s: %s", platform, result.value)
 
-    # Auto-discover and register providers
-    registry = create_default_registry()
-    for provider in registry.get_all():
-        provider._engine = state.browser_engine
-        await state.provider_runtime.register(provider)
-    state.provider_registry = registry
-    # V1: exclude Claude — only ship DeepSeek, Qianwen, Gemini, ChatGPT, MiMo
-    await state.provider_runtime.unregister("claude")
-    state.provider_registry.unregister("claude")
-    logger.info("Providers: %s", state.provider_runtime.get_ids())
+    # Create query adapters
+    query_adapters = _create_query_adapters()
 
-    # Initialize Layer 1: AI Access — register all providers as adapters
-    state.ai_manager = AIAccessManager(event_bus=state.event_bus)
-    for provider in state.provider_runtime.get_all():
-        state.ai_manager.register_adapter(provider)
-    await state.ai_manager.initialize()
-    await state.provider_runtime.initialize_all()
+    # Initialize AIAccessManager
+    state.ai_manager = AIAccessManager(
+        runtime_registry=runtime_registry,
+        query_adapters=query_adapters,
+        event_bus=state.event_bus,
+    )
+    logger.info("AIAccessManager initialized")
 
     # Initialize Layer 2: Scheduler
     state.scheduler = SchedulerCenter(
@@ -121,20 +182,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     state.comparison_engine = ComparisonEngine(config=config.comparison, event_bus=state.event_bus)
 
     # Initialize Layer 5: Consensus + Conflict + Judge
-    from omnicounci1l_consensus import ConsensusEngine
     from omnicounci1l_conflict import ConflictEngine
+    from omnicounci1l_consensus import ConsensusEngine
     from omnicounci1l_judge import JudgeEngine
     state.consensus_engine = ConsensusEngine(config=config.comparison)
     state.conflict_engine = ConflictEngine()
     state.judge_engine = JudgeEngine()
-
-    # Initialize SessionManager (background auth heartbeat)
-    from engine.session.manager import SessionManager
-    state.session_manager = SessionManager(
-        engine=state.browser_engine,
-        interval_seconds=300,  # every 5 minutes
-    )
-    state.session_manager.start()
 
     # Initialize Storage
     state.storage = LocalStorage()
@@ -161,20 +214,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     exception_handler = GlobalExceptionHandler(ws_manager)
     exception_handler.install()
 
-    logger.info("OmniCouncil backend started. AIs: %s", [a.ai_id for a in state.ai_manager.get_ready_ais()])
+    ready_ais = [p for p, s in boot_results.items() if s.value == "ready"]
+    logger.info("OmniCouncil backend V2 started. Ready AIs: %s", ready_ais)
 
     yield
 
     # Cleanup
-    logger.info("Shutting down OmniCouncil backend...")
-    if state.session_manager:
-        await state.session_manager.stop()
-    if state.provider_runtime:
-        await state.provider_runtime.destroy_all()
-    if state.browser_engine:
-        await state.browser_engine.disconnect()
+    logger.info("Shutting down OmniCouncil backend V2...")
+    await runtime_registry.shutdown_all()
     if state.ai_manager:
-        await state.ai_manager.destroy()
+        pass  # AIAccessManager doesn't have destroy()
     TraceStore.reset()
     MetricsCollector.reset()
     EventBus.reset()
@@ -183,7 +232,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 # ========== App Creation ==========
 
-app = FastAPI(title="OmniCouncil", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="OmniCouncil", version="0.2.0", lifespan=lifespan)
+
 
 class DevCORSMiddleware(CORSMiddleware):
     """CORS middleware that allows any localhost/127.0.0.1 origin (dev mode)."""

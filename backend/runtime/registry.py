@@ -54,6 +54,10 @@ class RuntimeRegistry(RuntimeRegistryProtocol):
         """Return all registered engines."""
         return dict(self._engines)
 
+    def all(self) -> dict[str, AIRuntimeEngine]:
+        """Alias for get_all() — convenience for iteration."""
+        return dict(self._engines)
+
     def get_platforms(self) -> list[str]:
         """Return all registered platform IDs."""
         return list(self._engines.keys())

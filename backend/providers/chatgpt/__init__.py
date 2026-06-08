@@ -1,4 +1,4 @@
-"""ChatGPT provider."""
-from .provider import OpenAIProvider
+"""ChatGPT provider (V2 QueryAdapter)."""
+from .query_adapter import ChatGPTQueryAdapter
 
-__all__ = ["OpenAIProvider"]
+__all__ = ["ChatGPTQueryAdapter"]

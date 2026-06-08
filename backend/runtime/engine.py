@@ -40,9 +40,12 @@ from engine.contracts import (
     HealthMonitor as HealthMonitorProtocol,
 )
 from engine.contracts import (
+    PageBusyError,
+    PageBusyState,
     PlatformConfig,
     RecoveryFailedError,
     RuntimeHealth,
+    RuntimeMetrics,
     RuntimeNotReadyError,
     RuntimeState,
     StateTransition,
@@ -141,6 +144,21 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
 
         # Watchdog task (ChatGPT visible window)
         self._watchdog_task: asyncio.Task[None] | None = None
+
+        # === Page Lease / Concurrency control (Phase 3-5 remediation) ===
+        # P1-3: extracted to PageGuard — single source of truth for
+        # lease lock / recovery flag / pending-evict flag / ref count.
+        from runtime.page_guard import PageGuard
+        self._guard: PageGuard = PageGuard(
+            platform=self._platform,
+            metrics=None,  # set below, after RuntimeMetrics is created
+        )
+        self._evict_task: asyncio.Task[None] | None = None
+
+        # Per-platform metrics (exposed via /metrics/runtime)
+        self._metrics: RuntimeMetrics = RuntimeMetrics(platform=self._platform)
+        # Back-fill the guard with the now-constructed metrics object
+        self._guard._metrics = self._metrics
 
     # ── Properties (from ABC) ──────────────────────────────
 
@@ -307,7 +325,13 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
     # ── Core: get_page ─────────────────────────────────────
 
     def get_page(self) -> Any:
-        """Return the cached Playwright Page (only when READY)."""
+        """Return the cached Playwright Page (only when READY).
+
+        .. deprecated::
+            Prefer :meth:`acquire_page` — it is the only safe way to use
+            the page in V2.  Direct ``get_page()`` calls bypass the lease
+            and will race with eviction / recovery.
+        """
         if self.state != RuntimeState.READY:
             raise RuntimeNotReadyError(self.state)
 
@@ -316,6 +340,120 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
 
         self._page_last_used = time.time()
         return self._page
+
+    # ── Core: acquire_page (Page Lease) ─────────────────────
+
+    @contextlib.asynccontextmanager
+    async def acquire_page(
+        self, *, timeout: float = 30.0
+    ):
+        """Lease the page to a single query (async context manager).
+
+        Phase 7 P1-3: guard logic delegated to ``PageGuard`` so the
+        same state machine powers ``acquire_page()`` and
+        ``RecoveryEngine.recover()``.
+        """
+        if self.state != RuntimeState.READY:
+            self._metrics.page_busy_rejections += 1
+            raise RuntimeNotReadyError(self.state)
+
+        # P0-2: opportunistic eviction — check both time-based and liveness
+        try:
+            # Check if page is closed/crashed (not just stale)
+            if self._page is not None:
+                try:
+                    if self._page.is_closed():
+                        logger.info("%s: page closed externally, triggering eviction", self._platform)
+                        self._guard.mark_evict()
+                        if self._evict_task is None or self._evict_task.done():
+                            self._evict_task = asyncio.create_task(self._evict_page())
+                except Exception:
+                    logger.info("%s: page liveness check failed, triggering eviction", self._platform)
+                    self._guard.mark_evict()
+                    if self._evict_task is None or self._evict_task.done():
+                        self._evict_task = asyncio.create_task(self._evict_page())
+
+            self._evict_stale_pages()
+            if self._guard.is_pending_evict and self._evict_task is not None:
+                try:
+                    await asyncio.wait_for(self._evict_task, timeout=timeout)
+                except asyncio.TimeoutError:
+                    self._metrics.page_busy_rejections += 1
+                    raise PageBusyError(
+                        self._platform,
+                        f"eviction did not complete within {timeout:.1f}s",
+                    )
+        except PageBusyError:
+            raise
+        except Exception as exc:
+            logger.warning("%s: opportunistic eviction failed: %s",
+                           self._platform, exc)
+
+        # After eviction, self._page is None.  If we're still in
+        # READY state, re-create the page before handing it out.
+        if self._page is None and self.state == RuntimeState.READY:
+            try:
+                await self._recreate_page()
+            except Exception as exc:
+                self._metrics.page_busy_rejections += 1
+                raise PageBusyError(
+                    self._platform,
+                    f"page recreation after eviction failed: {exc}",
+                ) from exc
+
+        if self._page is None:
+            self._metrics.page_busy_rejections += 1
+            raise RuntimeNotReadyError(self.state)
+
+        page_to_lease = self._page
+
+        # P1-3: actual lease acquisition is in PageGuard
+        async with self._guard.lease(timeout=timeout):
+            self._page_last_used = time.time()
+            try:
+                yield page_to_lease
+            finally:
+                pass  # lease() context manager handles metrics/state
+
+    # ── Core: metrics ──────────────────────────────────────
+
+    def metrics(self) -> RuntimeMetrics:
+        """Return this engine's mutable metrics counters."""
+        return self._metrics
+
+    @property
+    def page_state(self) -> PageBusyState:
+        """Current sub-state of the page lease (P1-3: delegates to guard)."""
+        return self._guard.state
+
+    @property
+    def query_ref_count(self) -> int:
+        """Number of queries currently holding the page lease."""
+        return self._guard.query_ref_count
+
+    @property
+    def recovery_in_progress(self) -> bool:
+        """True while a recovery round is running."""
+        return self._guard.recovery_in_progress
+
+    # ── Recovery guard (public API for RecoveryEngine) ─────
+
+    async def guard_recovery(self, *, timeout: float = 5.0) -> None:
+        """Wait for idle page + mark recovery in progress.
+
+        Public API for ``RecoveryEngine`` — replaces private
+        ``_guard`` access.  Raises ``RecoveryBusyError`` if the
+        page is still leased after *timeout* seconds.
+        """
+        await self._guard.guard_recovery(timeout=timeout)
+
+    def clear_recovery(self, *, succeeded: bool = True) -> None:
+        """Clear the recovery flag.
+
+        Public API for ``RecoveryEngine`` — replaces private
+        ``_guard`` access.
+        """
+        self._guard.clear_recovery(succeeded=succeeded)
 
     # ── Core: check_health ─────────────────────────────────
 
@@ -393,6 +531,7 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
 
         self._page_created_at = time.time()
         self._page_last_used = time.time()
+        self._metrics.page_created += 1
 
         logger.info(
             "%s: browser launched (headless=%s)", self._platform, self._config.headless
@@ -417,10 +556,40 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
 
         logger.info("%s: browser closed", self._platform)
 
+    async def _recreate_page(self) -> None:
+        """Create a fresh Page after an eviction (Phase 7 P0-2).
+
+        Reuses the existing ``_context`` if alive; otherwise launches
+        a new browser.  Bumps ``page_created`` metric.
+        """
+        if self._context is None:
+            await self._launch_browser()
+            return
+        self._page = await self._context.new_page()
+        await self._page.goto(
+            self._config.home_url,
+            wait_until="domcontentloaded",
+            timeout=30000,
+        )
+        await self._page.wait_for_timeout(2000)
+        self._page_created_at = time.time()
+        self._page_last_used = time.time()
+        self._metrics.page_created += 1
+        logger.info("%s: page recreated", self._platform)
+
     # ── Page management (from EmbeddedEngine) ──────────────
 
     def _evict_stale_pages(self) -> int:
-        """Evict cached page if too old or idle."""
+        """Evict cached page if too old or idle.
+
+        V2 contract: this method NEVER returns a page that is about to
+        be evicted.  The eviction is scheduled as a tracked task and
+        the ``_pending_evict`` flag is raised *before* scheduling, so
+        any new ``acquire_page()`` call is rejected until the eviction
+        completes.  This closes the historical race where
+        ``get_page()`` returned a page reference that was about to be
+        torn down by ``asyncio.ensure_future``.
+        """
         if self._page is None:
             return 0
 
@@ -433,18 +602,34 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
                 "%s: evicting stale page (age=%.0fs, idle=%.0fs)",
                 self._platform, age, idle,
             )
-            asyncio.ensure_future(self._evict_page())
+            # P1-3: mark eviction via guard (single source of truth)
+            self._guard.mark_evict()
+            if self._evict_task is None or self._evict_task.done():
+                self._evict_task = asyncio.create_task(self._evict_page())
             return 1
         return 0
 
     async def _evict_page(self) -> None:
-        """Close and clear the cached page."""
-        if self._page is not None:
-            with contextlib.suppress(Exception):
-                await self._page.close()
-            self._page = None
-        self._page_created_at = 0.0
-        self._page_last_used = 0.0
+        """Close and clear the cached page (synchronous w.r.t. the caller).
+
+        P1-3: lease / state management goes through ``PageGuard``.
+        """
+        # Mark eviction start (idempotent — guard prevents double-count)
+        self._guard.mark_evict()
+        try:
+            # If a query is still using the page, wait for it to release
+            if self._guard.is_leased:
+                await self._guard.wait_until_idle(timeout=5.0)
+            if self._page is not None:
+                with contextlib.suppress(Exception):
+                    await self._page.close()
+                self._page = None
+            self._page_created_at = 0.0
+            self._page_last_used = 0.0
+            self._metrics.page_destroyed += 1
+        finally:
+            # P1-3: clear via guard
+            self._guard.clear_evict()
 
     # ── Watchdog (ChatGPT visible window) ──────────────────
 

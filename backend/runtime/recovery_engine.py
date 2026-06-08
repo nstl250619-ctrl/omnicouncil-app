@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from engine.contracts import (
+    RecoveryBusyError,
     RecoveryFailedError,
     RuntimeState,
 )
@@ -117,15 +118,9 @@ class RecoveryEngine:
         and transitions to READY on success or UNAVAILABLE on total
         failure.
 
-        Args:
-            engine: The ``AIRuntimeEngine`` instance.
-            platform: Platform identifier.
-
-        Returns:
-            True if recovery succeeded.
-
-        Raises:
-            RecoveryFailedError: All strategies exhausted.
+        Phase 7 P1-3: the page-busy / recovery-in-progress flags are
+        managed by ``PageGuard.guard_recovery()`` instead of poking
+        private engine attributes.
         """
         # Check attempt limit
         current_attempts = self._attempt_counts.get(platform, 0)
@@ -137,6 +132,22 @@ class RecoveryEngine:
             )
             await self._emit_failure(engine, platform)
             raise RecoveryFailedError(platform, current_attempts)
+
+        # === Phase 4 guard: page must not be leased by a query ===
+        # Use public API (guard_recovery) — no private attribute access
+        if hasattr(engine, "guard_recovery"):
+            try:
+                await engine.guard_recovery(timeout=5.0)
+            except RecoveryBusyError as exc:
+                logger.warning(
+                    "%s: recovery aborted — page still leased after %dms",
+                    platform, exc.waited_ms,
+                )
+                await self._emit_failure(engine, platform)
+                raise
+        else:
+            # Fallback for test stubs without guard_recovery
+            logger.debug("%s: engine has no guard_recovery, skipping page guard", platform)
 
         # Cooldown check
         last_time = self._last_attempt_time.get(platform, 0)
@@ -206,6 +217,9 @@ class RecoveryEngine:
                     strategy.name,
                     round_num,
                 )
+                # Use public API (clear_recovery) — no private attribute access
+                if hasattr(engine, "clear_recovery"):
+                    engine.clear_recovery(succeeded=True)
                 return True
 
         # All strategies failed
@@ -229,6 +243,8 @@ class RecoveryEngine:
                     RuntimeState.UNAVAILABLE,
                     reason=f"all {self._max_attempts} recovery rounds failed",
                 )
+            if hasattr(engine, "clear_recovery"):
+                engine.clear_recovery(succeeded=False)
             raise RecoveryFailedError(platform, self._max_attempts)
 
         # Still have attempts left — transition back to DEGRADED
@@ -238,6 +254,8 @@ class RecoveryEngine:
                 reason=f"recovery round {round_num} failed, retrying",
             )
 
+        if hasattr(engine, "clear_recovery"):
+            engine.clear_recovery(succeeded=False)
         return False
 
     def reset(self, platform: str | None = None) -> None:

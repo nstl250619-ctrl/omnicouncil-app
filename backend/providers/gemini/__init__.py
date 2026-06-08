@@ -1,4 +1,4 @@
-"""Gemini provider."""
-from .provider import GeminiProvider
+"""Gemini provider (V2 QueryAdapter)."""
+from .query_adapter import GeminiQueryAdapter
 
-__all__ = ["GeminiProvider"]
+__all__ = ["GeminiQueryAdapter"]

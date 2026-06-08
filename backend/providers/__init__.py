@@ -1,11 +1,8 @@
-"""AI Providers — plugin system for multi-AI support.
+"""AI Providers — V2 Query Adapter system.
 
 Usage:
-    from providers.registry import create_default_registry
-    registry = create_default_registry()
-    provider = registry.get("deepseek")
+    from providers.base.query_adapter import BaseQueryAdapter
 """
-from .base import BaseProvider, ProviderConfig
-from .registry import ProviderRegistry, create_default_registry
+from .base import BaseQueryAdapter, QueryAdapterConfig
 
-__all__ = ["BaseProvider", "ProviderConfig", "ProviderRegistry", "create_default_registry"]
+__all__ = ["BaseQueryAdapter", "QueryAdapterConfig"]

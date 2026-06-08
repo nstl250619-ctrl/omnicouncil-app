@@ -1,0 +1,90 @@
+diff --git a/backend/providers/registry.py b/backend/providers/registry.py
+new file mode 100644
+index 0000000..e421436
+--- /dev/null
++++ b/backend/providers/registry.py
+@@ -0,0 +1,84 @@
++"""ProviderRegistry — V2-only registry with state management.
++
++Phase 6 remediation: this is the *only* provider registry in V2.
++The legacy ``ProviderRegistry`` (V1) and ``ProviderRegistryV2``
++have been merged here with the V2 semantics (state tracking +
++hot-swap).  ``BaseProvider`` (V1) is replaced by ``BaseQueryAdapter``;
++callers should adapt their registrations accordingly.
++"""
++
++from __future__ import annotations
++
++import logging
++from typing import Any
++
++from shared.types import AIStatus
++
++logger = logging.getLogger(__name__)
++
++
++class ProviderRegistry:
++    """Enhanced provider registry with state tracking (V2)."""
++
++    def __init__(self) -> None:
++        self._providers: dict[str, Any] = {}
++        self._statuses: dict[str, AIStatus] = {}
++
++    def register(self, provider: Any) -> None:
++        pid = getattr(provider, "ai_id", None) or getattr(
++            provider, "platform", None
++        )
++        if pid is None:
++            raise ValueError("provider must expose ai_id or platform")
++        existed = pid in self._providers
++        self._providers[pid] = provider
++        self._statuses[pid] = AIStatus.INITIALIZING
++        action = "hot-swapped" if existed else "registered"
++        logger.info("Provider %s: %s", pid, action)
++
++    def unregister(self, provider_id: str) -> bool:
++        if provider_id not in self._providers:
++            return False
++        del self._providers[provider_id]
++        self._statuses.pop(provider_id, None)
++        logger.info("Provider %s: unregistered", provider_id)
++        return True
++
++    def get(self, provider_id: str) -> Any | None:
++        return self._providers.get(provider_id)
++
++    def get_all(self) -> list[Any]:
++        return list(self._providers.values())
++
++    def get_ids(self) -> list[str]:
++        return list(self._providers.keys())
++
++    def get_status(self, provider_id: str) -> AIStatus | None:
++        return self._statuses.get(provider_id)
++
++    def set_status(self, provider_id: str, status: AIStatus) -> None:
++        self._statuses[provider_id] = status
++
++    def get_configs(self) -> list[dict[str, Any]]:
++        out: list[dict[str, Any]] = []
++        for p in self._providers.values():
++            cfg = getattr(p, "config", None)
++            if cfg is None:
++                continue
++            try:
++                c = cfg() if callable(cfg) else cfg
++                out.append(
++                    {
++                        "provider_id": getattr(c, "provider_id", p.ai_id),
++                        "display_name": getattr(c, "display_name", p.ai_id),
++                        "enabled": getattr(c, "enabled", True),
++                        "icon_color": getattr(c, "icon_color", "#6C5CE7"),
++                        "icon_emoji": getattr(c, "icon_emoji", "🤖"),
++                        "status": self._statuses.get(
++                            p.ai_id, AIStatus.INITIALIZING
++                        ).value,
++                    }
++                )
++            except Exception:
++                continue
++        return out
