@@ -1,7 +1,5 @@
 """Tests for ConsensusEngine."""
 
-import time
-import pytest
 from omnicounci1l_consensus import ConsensusEngine
 from omnicounci1l_core.types import (
     AiResult,
@@ -11,9 +9,7 @@ from omnicounci1l_core.types import (
     ResultStatus,
     RoundContext,
     RoundContextSummary,
-    SemanticUnit,
     SimilarityMatrix,
-    UniqueInsight,
 )
 
 

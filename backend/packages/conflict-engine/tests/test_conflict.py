@@ -1,6 +1,5 @@
 """Tests for ConflictEngine."""
 
-import pytest
 from omnicounci1l_conflict import ConflictEngine, ConflictResult
 from omnicounci1l_core.types import (
     AiResult,

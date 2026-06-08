@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 
 import pytest
 
@@ -10,7 +9,7 @@ from providers.runtime import ProviderRuntime
 from providers.registry_v2 import ProviderRegistryV2
 from providers.session_manager import ProviderSessionManager
 from providers.health_monitor import HealthStatus, ProviderHealthMonitor
-from providers.event_bus import ProviderEventBus, PROVIDER_REGISTERED, PROVIDER_UNREGISTERED
+from providers.event_bus import ProviderEventBus, PROVIDER_REGISTERED
 from providers.errors import (
     ProviderError,
     LoginRequiredError,

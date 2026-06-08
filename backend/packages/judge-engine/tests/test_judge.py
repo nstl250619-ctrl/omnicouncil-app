@@ -1,7 +1,6 @@
 """Tests for JudgeEngine."""
 
 import asyncio
-import pytest
 from omnicounci1l_judge import JudgeEngine, JudgeVerdict
 from omnicounci1l_core.types import (
     AiResult,

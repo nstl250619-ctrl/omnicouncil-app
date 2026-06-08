@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 
 import pytest
@@ -183,7 +182,6 @@ class TestProviderRuntimeFull:
     async def test_send_with_login_fallback(self):
         from providers.runtime import ProviderRuntime
         from providers.base.provider import BaseProvider, ProviderConfig
-        from shared.types import AIResponse
 
         runtime = ProviderRuntime()
 

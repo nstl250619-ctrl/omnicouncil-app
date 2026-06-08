@@ -9,14 +9,7 @@
 from __future__ import annotations
 
 import asyncio
-import warnings
 
-warnings.warn(
-    "engine.session.manager.SessionManager is deprecated; "
-    "use runtime.health_monitor.HealthMonitor instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
 import logging
 from typing import TYPE_CHECKING
 

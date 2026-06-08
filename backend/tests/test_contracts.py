@@ -15,16 +15,12 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 
 from engine.contracts import (
-    AIRuntimeEngine,
     HealthMonitor as HealthMonitorProtocol,
     PlatformConfig,
     ProfileManager as ProfileManagerABC,
-    QueryAdapter as QueryAdapterABC,
     RecoveryStrategy as RecoveryStrategyProtocol,
     RuntimeRegistry as RuntimeRegistryProtocol,
     RuntimeState,

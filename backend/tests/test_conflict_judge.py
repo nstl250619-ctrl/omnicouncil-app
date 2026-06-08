@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import time
 
-import pytest
 
 from omnicounci1l_conflict import ConflictEngine
-from omnicounci1l_conflict import ConflictPoint, ConflictPosition, ConflictResult
+from omnicounci1l_conflict import ConflictResult
 from omnicounci1l_judge import JudgeEngine
 from omnicounci1l_judge import JudgeVerdict
 from shared.types import (

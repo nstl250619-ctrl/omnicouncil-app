@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from providers.base.provider import BaseProvider, ProviderConfig
-from shared.types import AIStatus, AIResponse, ProviderStatus, SubmitOptions
+from shared.types import AIStatus, ProviderStatus
 
 
 def make_provider(pid="test", name="Test"):

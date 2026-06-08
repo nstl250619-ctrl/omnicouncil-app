@@ -4,14 +4,10 @@ from __future__ import annotations
 
 import time
 
-import pytest
 
 from omnicounci1l_consensus import ConsensusEngine
 from omnicounci1l_consensus import (
-    ConsensusPoint,
     ConsensusReport,
-    DisagreementPoint,
-    DisagreementPosition,
 )
 from shared.types import (
     AiResult,

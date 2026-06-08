@@ -102,7 +102,6 @@ def register_routes(app) -> None:
         state = _try_state()
         result = {"status": "ok", "providers": []}
         if state and state.ai_manager:
-            from shared.types import SessionState
             for s in state.ai_manager.get_ready_ais():
                 provider_info = {
                     "ai_id": s.ai_id,
@@ -261,7 +260,7 @@ def register_routes(app) -> None:
 
         logger.info("Add provider requested: %s (%s)", name, data.get("home_url", url))
 
-        # TODO: create and register a dynamic provider class
+        # TODO(v2.1): implement dynamic provider registration — currently returns stub response
         return {"status": "added", "provider": {"name": name, "url": url, "home_url": data.get("home_url", "")}}
 
 

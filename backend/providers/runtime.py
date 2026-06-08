@@ -5,13 +5,10 @@ Central orchestrator for all provider operations.
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import time
 from typing import TYPE_CHECKING, Any
 
 from providers.event_bus import (
-    PROVIDER_HEALTH_CHANGED,
     PROVIDER_LOGIN_FAILED,
     PROVIDER_LOGIN_SUCCESS,
     PROVIDER_REGISTERED,

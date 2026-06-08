@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import time
-from collections import Counter
 from typing import TYPE_CHECKING
 
 from omnicounci1l_core.types import generate_id

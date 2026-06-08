@@ -6,11 +6,6 @@
 """
 
 from __future__ import annotations
-import warnings
-warnings.warn(
-    "providers.session_manager is deprecated; use runtime.session_validator instead.",
-    DeprecationWarning, stacklevel=2,
-)
 
 import json
 import logging

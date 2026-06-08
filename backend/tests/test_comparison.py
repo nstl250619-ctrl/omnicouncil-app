@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
 
 from shared.config import ComparisonConfig
 from shared.types import (

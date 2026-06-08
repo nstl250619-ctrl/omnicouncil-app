@@ -5,15 +5,10 @@
 """
 
 from __future__ import annotations
-import warnings
-warnings.warn(
-    "providers.health_monitor is deprecated; use runtime.health_monitor instead.",
-    DeprecationWarning, stacklevel=2,
-)
 
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 

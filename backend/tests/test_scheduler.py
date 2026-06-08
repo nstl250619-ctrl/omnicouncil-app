@@ -13,7 +13,6 @@ from shared.errors import NoAvailableAIError, TaskValidationError
 from shared.types import (
     AIResponse,
     AIStatus,
-    AIAvailability,
     ProviderStatus,
     QueryRequest,
     TaskMode,

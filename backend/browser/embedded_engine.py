@@ -23,7 +23,6 @@ import os
 import sys
 import time
 import traceback
-import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 

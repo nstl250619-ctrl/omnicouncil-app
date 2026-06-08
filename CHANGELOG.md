@@ -69,10 +69,19 @@
 
 ### Testing
 
-- 635/644 backend tests passing (9 pre-existing env-dependent failures)
-- Regression test suite: 35/43 items passed, all core paths verified
+- 659/659 backend tests passing (0 failures)
+- Runtime Engine dedicated tests: 276 cases (42% of total)
+- Regression test suite: all core paths verified
 - Multi-AI concurrent query with 4/5 success degraded path verified
 - Comparison, consensus, conflict engines verified end-to-end
+
+### Code Cleanup
+
+- Removed 3 stale directories (`audit/`, `audit_v2/`, `test-results/`)
+- Removed 91 unused Python imports via ruff
+- Added `__all__` to `omnicounci1l_core/__init__.py` for explicit re-exports
+- Updated 1 TODO comment with version target
+- Removed duplicate `.gitignore` entry
 
 ### Project Structure
 
@@ -88,7 +97,7 @@ omnicouncil-app/
 │   │   ├── conflict-engine/
 │   │   └── judge-engine/
 │   │   └── omnicounci1l-core/
-│   └── tests/                # 644 test cases
+│   └── tests/                # 659 test cases
 ├── src/                      # React + TypeScript frontend
 │   ├── pages/                # PlatformSetupPage, ConsolePage
 │   ├── components/           # UI components (AIIconSelector, JudgeView, ErrorToast)

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import time
 
-import pytest
 
-from shared.trace import Trace, TraceStore, TraceEvent
+from shared.trace import Trace, TraceStore
 from shared.metrics import MetricsCollector
-from shared.replay import ReplayEngine, ReplayResult
+from shared.replay import ReplayEngine
 from shared.instrumentation import Instrumentation
 from shared.event_bus import EventBus
 

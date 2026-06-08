@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 
-import pytest
 
-from shared.types import AIStatus, CircuitState
+from shared.types import CircuitState
 from engine.layers.layer1_ai_access.managers.circuit_breaker import CircuitBreaker
 from engine.layers.layer1_ai_access.managers.rate_limiter import RateLimiter
 from engine.layers.layer1_ai_access.managers.provider_manager import ProviderManager

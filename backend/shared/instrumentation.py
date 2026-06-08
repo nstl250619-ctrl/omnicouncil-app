@@ -8,7 +8,6 @@ Feature flags: tracing_enabled, metrics_enabled (default: False).
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any
 
 from shared.event_bus import EventBus

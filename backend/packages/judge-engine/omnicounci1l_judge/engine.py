@@ -10,7 +10,6 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from omnicounci1l_core.types import generate_id
 
 from .result import JudgeVerdict
 
