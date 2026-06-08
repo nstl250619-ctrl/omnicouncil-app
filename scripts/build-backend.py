@@ -26,13 +26,22 @@ def build():
         check=True,
     )
     # Install engine packages (required by main.py imports)
+    # Core first — all other engine packages depend on it
+    core_dir = BACKEND / "packages" / "omnicounci1l-core"
+    if (core_dir / "pyproject.toml").exists():
+        print(f"  Installing engine package: {core_dir.name}")
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-e", str(core_dir), "-q"],
+            check=True,
+        )
     for pkg_dir in sorted((BACKEND / "packages").iterdir()):
-        if (pkg_dir / "pyproject.toml").exists():
-            print(f"  Installing engine package: {pkg_dir.name}")
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", "-e", str(pkg_dir), "-q"],
-                check=True,
-            )
+        if not (pkg_dir / "pyproject.toml").exists() or pkg_dir.name == "omnicounci1l-core":
+            continue
+        print(f"  Installing engine package: {pkg_dir.name}")
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-e", str(pkg_dir), "-q"],
+            check=True,
+        )
     print("Engine packages installed.")
 
     # Run PyInstaller
