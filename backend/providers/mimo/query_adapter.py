@@ -29,6 +29,7 @@ class MiMoQueryAdapter(BaseQueryAdapter):
 
     async def _activate_chat_mode(self, page: Any) -> None:
         mimo_chat_labels = ["mimo chat", "MiMo Chat", "MIMO Chat", "聊天", "对话"]
+        activated = False
         for label in mimo_chat_labels:
             try:
                 btn = page.locator(
@@ -39,9 +40,25 @@ class MiMoQueryAdapter(BaseQueryAdapter):
                     logger.info("MiMo: clicking '%s' to activate chat mode", label)
                     await btn.click()
                     await page.wait_for_timeout(2000)
+                    activated = True
                     return
             except Exception:
                 continue
+        if not activated:
+            # Silent fallback here is the root cause of "MiMo first responses
+            # don't match the question" — the prompt gets typed into whatever
+            # mode is currently active (image / docs / etc.). Surface it loudly
+            # so we can see in the log when this branch fires, and capture a
+            # debug snapshot to inspect the current page state.
+            logger.warning(
+                "MiMo: chat mode label not found, fallback to current mode "
+                "(prompt may be typed into a non-chat input)"
+            )
+            try:
+                await page.screenshot(path="/tmp/mimo_chat_mode_miss.png")
+                logger.info("MiMo: debug screenshot saved to /tmp/mimo_chat_mode_miss.png")
+            except Exception as exc:
+                logger.debug("MiMo: failed to capture debug screenshot (%s)", exc)
 
     async def _find_input(self, page: Any) -> Any:
         selectors = [

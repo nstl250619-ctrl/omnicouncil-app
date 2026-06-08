@@ -151,8 +151,12 @@ class QianwenQueryAdapter(BaseQueryAdapter):
             body = body.replace("\xa0", " ")
             lines = [line.strip() for line in body.split("\n") if line.strip()]
             prompt_idx = None
-            for i, line in enumerate(lines):
-                if prompt in line:
+            # Reverse search: take the LAST occurrence of `prompt` in the page
+            # body. Forward search grabs the sidebar's "Recent chats" copy of
+            # the prompt and returns the footer that follows it, which is why
+            # the first request appeared empty and triggered a retry.
+            for i in range(len(lines) - 1, -1, -1):
+                if prompt in lines[i]:
                     prompt_idx = i
                     break
             if prompt_idx is not None:

@@ -97,6 +97,13 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
         max_recovery_attempts=3,
         recovery_cooldown_s=30,
         session_check_mode="offline_then_online",
+        # Move the visible Cloudflare-challenge window far off-screen so it
+        # doesn't disturb the user. --window-position is a no-op for the
+        # headless=true providers, but harmless.
+        extra_browser_args=[
+            "--window-position=-2400,-2400",
+            "--window-size=1280,800",
+        ],
     ),
     "mimo": PlatformConfig(
         name="mimo",
