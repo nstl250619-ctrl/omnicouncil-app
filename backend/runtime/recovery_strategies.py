@@ -325,19 +325,31 @@ class RestartBrowserStrategy:
                     "--disable-features=ChromeWhatsNewUI",
                 ])
 
-            # Non-headless platforms (currently just chatgpt) get an extra
-            # window position + size hint on top of whatever the platform
-            # config supplies, so a recovery that re-launches the browser
-            # can't bring the window back into the user's view. The values
-            # match the initial-launch args in main.py and are deliberately
-            # re-applied here so that even if the platform config loses the
-            # args, the watchdog-driven restart stays invisible.
+            # Non-headless platforms (currently just chatgpt) get the full
+            # set of hide-window args defensively, so a recovery that loses
+            # the platform config (or starts on a new code version that
+            # dropped the args) still can't leak the window into the
+            # taskbar. The values are merged with whatever the platform
+            # config supplied, with key= / value flags deduplicated by
+            # exact prefix.
             if not headless:
-                # Only add if not already present to avoid duplicates.
-                if not any(a.startswith("--window-position=") for a in extra_args):
-                    extra_args.append("--window-position=-2400,-2400")
-                if not any(a.startswith("--window-size=") for a in extra_args):
-                    extra_args.append("--window-size=1280,800")
+                home_url = getattr(config, "home_url", None) or "about:blank"
+                forced_args = [
+                    "--window-position=-32000,-32000",
+                    "--window-size=1,1",
+                    f"--app={home_url}",
+                    "--no-startup-window",
+                    "--disable-notifications",
+                    "--disable-infobars",
+                ]
+                for arg in forced_args:
+                    # --app= / --window-position= / --window-size= are
+                    # key=value flags; dedupe by exact prefix to avoid
+                    # duplicates after merging.
+                    if not any(
+                        a.split("=")[0] == arg.split("=")[0] for a in extra_args
+                    ):
+                        extra_args.append(arg)
 
             launch_args = [
                 "--disable-blink-features=AutomationControlled",

@@ -51,8 +51,8 @@ def _build_engine_mock(platform: str = "chatgpt") -> Any:
     config.headless = False  # chatgpt is non-headless
     config.home_url = "https://chatgpt.com"
     config.extra_browser_args = [
-        "--window-position=-2400,-2400",
-        "--window-size=1280,800",
+        "--window-position=-32000,-32000",
+        "--window-size=1,1",
     ]
     engine.get_platform_config = MagicMock(return_value=config)
     return engine
@@ -95,10 +95,10 @@ async def test_restart_browser_applies_window_position_on_non_headless() -> None
     args = launch_call.kwargs.get("args") or launch_call.args[2]
     # args is a list of chromium switches
     joined = " ".join(args)
-    assert "--window-position=-2400,-2400" in joined, (
+    assert "--window-position=-32000,-32000" in joined, (
         f"Restart must preserve --window-position. Got: {joined}"
     )
-    assert "--window-size=1280,800" in joined, (
+    assert "--window-size=1,1" in joined, (
         f"Restart must preserve --window-size. Got: {joined}"
     )
     assert launch_call.kwargs.get("headless") is False, (
@@ -127,8 +127,8 @@ async def test_restart_browser_adds_window_args_even_if_config_lost_them() -> No
 
     args = playwright.chromium.launch_persistent_context.call_args.kwargs["args"]
     joined = " ".join(args)
-    assert "--window-position=-2400,-2400" in joined
-    assert "--window-size=1280,800" in joined
+    assert "--window-position=-32000,-32000" in joined
+    assert "--window-size=1,1" in joined
 
 
 @pytest.mark.asyncio

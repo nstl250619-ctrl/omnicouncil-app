@@ -514,6 +514,27 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
             *self._config.extra_browser_args,
         ]
 
+        # Defensive: non-headless platforms (currently just chatgpt) get the
+        # full set of hide-window args merged in even if the platform config
+        # lost them. Key= / value flags are deduped by exact prefix. This
+        # mirrors the defensive block in recovery_strategies.py so both the
+        # initial launch AND a watchdog-driven restart stay invisible.
+        if not self._config.headless:
+            home_url = self._config.home_url or "about:blank"
+            forced_args = [
+                "--window-position=-32000,-32000",
+                "--window-size=1,1",
+                f"--app={home_url}",
+                "--no-startup-window",
+                "--disable-notifications",
+                "--disable-infobars",
+            ]
+            for arg in forced_args:
+                if not any(
+                    a.split("=")[0] == arg.split("=")[0] for a in launch_args
+                ):
+                    launch_args.append(arg)
+
         self._context = await self._playwright.chromium.launch_persistent_context(
             str(profile_path),
             headless=self._config.headless,

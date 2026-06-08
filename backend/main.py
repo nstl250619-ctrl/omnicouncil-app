@@ -97,12 +97,18 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
         max_recovery_attempts=3,
         recovery_cooldown_s=30,
         session_check_mode="offline_then_online",
-        # Move the visible Cloudflare-challenge window far off-screen so it
-        # doesn't disturb the user. --window-position is a no-op for the
-        # headless=true providers, but harmless.
         extra_browser_args=[
-            "--window-position=-2400,-2400",
-            "--window-size=1280,800",
+            # 1) 把窗口丢到不存在的屏幕坐标
+            "--window-position=-32000,-32000",
+            # 2) 窗口尺寸压到 1x1
+            "--window-size=1,1",
+            # 3) 应用模式：无地址栏/标签栏/菜单栏，任务栏无图标
+            "--app=https://chatgpt.com",
+            # 4) 禁止启动时自动创建窗口
+            "--no-startup-window",
+            # 5) 关掉通知弹窗和自动化信息条
+            "--disable-notifications",
+            "--disable-infobars",
         ],
     ),
     "mimo": PlatformConfig(
