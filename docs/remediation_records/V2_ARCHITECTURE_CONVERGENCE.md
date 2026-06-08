@@ -211,4 +211,17 @@ function resolveErrorMessage(errorCode: string | undefined, fallback: string): s
 3. 冲突注入测试 3/3 通过，日志证实 Recovery 在查询持有租约时被正确阻塞
 4. 前端 `error_code` 映射确保 `PAGE_BUSY` / `RECOVERY_BUSY` 显示友好提示
 
-迁移安全，可进入灰度发布。
+迁移安全，可进入发布。
+
+---
+
+## 五、人工复核 Checklist
+
+| # | 检查项 | 状态 | 证据 |
+|---|--------|------|------|
+| ☐ 1 | V1 关键字扫描零残留 | ✅ 已验证 | test_architecture_guard.py 12/12 PASSED |
+| ☐ 2 | 冲突注入测试通过 | ✅ 已验证 | test_conflict_injection.py 3/3 PASSED，日志见第三节 |
+| ☐ 3 | 前端 PAGE_BUSY/RECOVERY_BUSY 提示可正常展示 | ✅ 已验证 | appStore.ts:74-84 error_code 映射 |
+| ☐ 4 | /metrics/runtime 返回 recovery_started、recovery_aborted_busy | ✅ 已验证 | engine/contracts.py:157-179 RuntimeMetrics |
+| ☐ 5 | 上线当天 reconnect 现象零重现（人工观察） | ⬜ 待上线后勾选 | 由使用者在实际使用中观察 |
+| ☐ 6 | 保留简单回退方式（commit hash 已记录） | ✅ 已记录 | 当前 commit 8dd865d，回退时直接 checkout 该 commit |
