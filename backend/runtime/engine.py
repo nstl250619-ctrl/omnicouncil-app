@@ -232,17 +232,19 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
 
             from shared.types import SessionState
 
+            # Always register and start health monitor (even if not authenticated)
+            # so the platform is tracked regardless of session state.
+            self._health_monitor.register(
+                self._platform,
+                self._session_validator,
+                get_page_fn=lambda: self._page,
+            )
+            self._health_monitor.start()
+
             if session_state == SessionState.AUTHENTICATED:
                 await self._state_machine.transition(
                     RuntimeState.READY, reason="session valid"
                 )
-                # Start health monitor
-                self._health_monitor.register(
-                    self._platform,
-                    self._session_validator,
-                    get_page_fn=lambda: self._page,
-                )
-                self._health_monitor.start()
                 # Start watchdog for visible windows (ChatGPT)
                 if not self._config.headless:
                     self._start_watchdog()
