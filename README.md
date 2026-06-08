@@ -143,47 +143,92 @@ omnicouncil-app/
 │   └── src/
 │       ├── main.rs         # 窗口管理、进程管理
 │       └── python_manager.rs
-├── src/                    # 前端 (React)
-│   ├── components/         # UI 组件
-│   ├── stores/             # Zustand 状态管理
-│   ├── hooks/              # WebSocket hook
-│   └── styles/             # CSS 样式
-├── backend/                # Python 后端
-│   ├── main.py             # 旧入口 (向后兼容)
-│   ├── main_v2.py          # 新入口 (Runtime + Query Engine)
-│   ├── engine/             # 引擎层
-│   │   ├── contracts.py    # 接口契约 (Protocol/ABC/枚举/异常)
-│   │   ├── layers/         # 第1-4层 (接入/调度/收集/对比)
-│   │   ├── consensus/      # 共识引擎
-│   │   ├── conflict/       # 冲突引擎
-│   │   └── judge/          # 判断引擎
-│   ├── runtime/            # Runtime Engine (新)
+├── src/                    # 前端 (React + TypeScript + Vite)
+│   ├── pages/
+│   │   ├── ConsolePage.tsx         # 控制台主页
+│   │   └── PlatformSetupPage.tsx   # AI 平台管理页
+│   ├── components/
+│   │   ├── AIIconSelector.tsx      # AI 图标选择器
+│   │   ├── AIPlatformManager.tsx   # 首次启动向导 (旧)
+│   │   ├── ComparisonTab.tsx       # 对比分析标签
+│   │   ├── ConflictTab.tsx         # 冲突分析标签
+│   │   ├── ConsensusTab.tsx        # 共识分析标签
+│   │   ├── ErrorBoundary.tsx       # 错误边界
+│   │   ├── ErrorToast.tsx          # 错误/健康 Toast
+│   │   ├── HistoryView.tsx         # 历史记录
+│   │   ├── JudgeView.tsx           # 评判建议标签
+│   │   ├── QueryInput.tsx          # 查询输入框
+│   │   ├── ResponsesTab.tsx        # AI 回复标签
+│   │   ├── Settings.tsx            # 设置页面
+│   │   ├── StatusBar.tsx           # 状态栏
+│   │   ├── TabBar.tsx              # 标签栏
+│   │   └── Titlebar.tsx            # 标题栏
+│   ├── stores/
+│   │   ├── appStore.ts             # Zustand 主状态 (AI 回复/runtimeHealth)
+│   │   └── configStore.ts          # 配置持久化
+│   ├── hooks/
+│   │   └── useWebSocket.ts         # WebSocket + 健康事件
+│   ├── styles/
+│   │   └── globals.css             # CSS 变量 + 全局样式
+│   ├── App.tsx                     # 路由 + Toast
+│   └── main.tsx                    # React 入口
+├── backend/                # Python 后端 (FastAPI + WebSocket)
+│   ├── main.py             # 入口 (FastAPI + lifespan)
+│   ├── main_v2.py          # 旧入口 (向后兼容)
+│   ├── build.spec          # PyInstaller 打包配置
+│   ├── api/
+│   │   ├── routes.py       # HTTP 路由
+│   │   └── events.py       # EventBus → WebSocket 事件桥接
+│   ├── ws/
+│   │   └── connection.py   # WebSocket 连接管理器
+│   ├── engine/
+│   │   ├── contracts.py    # 接口契约 (RuntimeHealth/状态枚举)
+│   │   └── layers/
+│   │       ├── layer1_ai_access/   # AI 接入层
+│   │       ├── layer2_scheduler/   # 调度中心
+│   │       └── layer3_collector/   # 结果收集
+│   ├── runtime/            # Runtime Engine
 │   │   ├── engine.py       # AIRuntimeEngine 主类
 │   │   ├── state_machine.py # 10 状态生命周期
+│   │   ├── health_monitor.py # 后台心跳
 │   │   ├── profile_manager.py # Profile 备份/恢复
 │   │   ├── session_validator.py # Session 验证
-│   │   ├── health_monitor.py # 后台心跳
 │   │   ├── recovery_engine.py # 自动恢复编排
 │   │   ├── recovery_strategies.py # 4 级恢复策略
 │   │   └── registry.py     # RuntimeRegistry
-│   ├── providers/          # Query Engine (新)
+│   ├── providers/          # Query Engine
 │   │   ├── base/
-│   │   │   ├── provider.py # 旧 BaseProvider (向后兼容)
+│   │   │   ├── provider.py # 旧 BaseProvider
 │   │   │   └── query_adapter.py # 新 BaseQueryAdapter
-│   │   ├── deepseek/       # DeepSeek 适配器
-│   │   ├── chatgpt/        # ChatGPT 适配器
-│   │   ├── gemini/         # Gemini 适配器
-│   │   ├── qianwen/        # 千问适配器
-│   │   ├── mimo/           # MiMo 适配器
-│   │   └── vision_fallback.py # 截图+OCR 兜底
-│   ├── browser/            # 旧浏览器引擎 (向后兼容)
+│   │   ├── deepseek/chatgpt/gemini/qianwen/mimo/claude/ # 适配器
+│   │   ├── vision_fallback.py # 截图+OCR 兜底
+│   │   ├── runtime.py      # ProviderRuntime
+│   │   ├── registry/registry_v2.py # 提供商注册表
+│   │   ├── event_bus.py    # 事件总线
+│   │   └── health_monitor.py / session_manager.py # (已弃用)
+│   ├── packages/           # 独立引擎包 (pip install -e)
+│   │   ├── omnicounci1l-core/       # 共享类型 (v2.0.0)
+│   │   ├── comparison-engine/       # 对比分析 (v2.0.0)
+│   │   ├── consensus-engine/        # 共识分析 (v2.0.0)
+│   │   ├── conflict-engine/         # 冲突分析 (v2.0.0)
+│   │   └── judge-engine/            # 评判建议 (v2.0.0)
+│   ├── browser/            # 浏览器引擎 (Playwright)
 │   ├── shared/             # 共享类型/配置/日志
 │   ├── storage/            # 本地存储
-│   ├── ws/                 # WebSocket 管理
 │   ├── config/             # 配置文件
-│   └── tests/              # 测试 (345+ 用例)
-├── scripts/                # 构建/测试脚本
-└── BUILD.md                # 构建说明
+│   ├── tests/              # 659 项 pytest 测试
+│   └── requirements.txt
+├── scripts/
+│   ├── build-backend.py    # PyInstaller 打包
+│   └── test-e2e.py
+├── tests/                  # Playwright E2E
+├── dist/                   # Vite 构建输出
+├── .github/workflows/
+│   ├── ci.yml              # OmniCouncil CI
+│   └── release.yml         # Windows EXE 构建
+├── CHANGELOG.md
+├── BUILD.md
+└── README.md
 ```
 
 ## 功能状态
