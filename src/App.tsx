@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useWebSocket, type HealthEvent } from './hooks/useWebSocket';
 import { useAppStore } from './stores/appStore';
-import { useConfigStore } from './stores/configStore';
 import { PlatformSetupPage } from './pages/PlatformSetupPage';
 import { ConsolePage } from './pages/ConsolePage';
-import { AIPlatformManager } from './components/AIPlatformManager';
 import { ErrorToast } from './components/ErrorToast';
 
 type Page = 'platform-setup' | 'console';
@@ -23,7 +21,6 @@ let toastId = 0;
 
 function App() {
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
-  const [configLoaded, setConfigLoaded] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>('console');
 
   // Helper to add health toasts
@@ -74,7 +71,6 @@ function App() {
   );
 
   const { send } = useWebSocket(onHealthEvent);
-  const { isFirstLaunch, setupCompleted, completeSetup, loadConfig } = useConfigStore();
   const [error, setError] = useState<{ message: string; recoverable: boolean; suggestion?: string } | null>(null);
 
   // Listen for errors from WebSocket
@@ -96,24 +92,6 @@ function App() {
     });
     return unsubscribe;
   }, []);
-
-  // Load config on mount
-  useEffect(() => {
-    loadConfig().then(() => setConfigLoaded(true));
-  }, [loadConfig]);
-
-  // Show AI Platform Manager on first launch (legacy setup wizard)
-  if (configLoaded && (isFirstLaunch || !setupCompleted)) {
-    return (
-      <AIPlatformManager
-        isSetupMode={true}
-        send={send}
-        onComplete={() => {
-          completeSetup();
-        }}
-      />
-    );
-  }
 
   // Render toasts
   const toastElements: React.ReactElement[] = [];

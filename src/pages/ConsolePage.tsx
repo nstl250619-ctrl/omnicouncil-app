@@ -396,17 +396,17 @@ export function ConsolePage({ onNavigateToPlatforms }: ConsolePageProps) {
                 style={{
                   width: 44,
                   height: 44,
-                  background: 'var(--accent)',
-                  border: 'none',
+                  background: !query.trim() || selectedAIs.length === 0 || isRunning ? 'var(--bg-inset)' : 'var(--accent)',
+                  border: '1px solid var(--border)',
                   borderRadius: 10,
-                  color: 'var(--bg-deep)',
+                  color: !query.trim() || selectedAIs.length === 0 || isRunning ? 'var(--text-muted)' : 'var(--bg-deep)',
                   fontSize: 17,
-                  cursor: 'pointer',
+                  cursor: !query.trim() || selectedAIs.length === 0 || isRunning ? 'default' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
-                  opacity: !query.trim() || selectedAIs.length === 0 || isRunning ? 0.5 : 1,
+                  transition: 'all 0.2s',
                 }}
               >
                 ↑
