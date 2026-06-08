@@ -522,6 +522,57 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
 
         # Create initial page and navigate
         self._page = await self._context.new_page()
+
+        # For non-headless platforms (chatgpt), tag the window title with
+        # [background] so the user can tell at a glance that any visible
+        # window is OmniCouncil-managed. Same MutationObserver strategy as
+        # RestartBrowserStrategy — survives SPA title rewrites.
+        if not self._config.headless:
+            try:
+                await self._page.add_init_script(
+                    """
+                    (() => {
+                        const tag = '[background] ';
+                        const apply = () => {
+                            try {
+                                if (
+                                    document.title &&
+                                    !document.title.startsWith(tag)
+                                ) {
+                                    document.title = tag + document.title;
+                                }
+                            } catch (_) {}
+                        };
+                        const installObserver = () => {
+                            const head = document.head || document.documentElement;
+                            if (!head || head.__bgObserved) return;
+                            head.__bgObserved = true;
+                            const obs = new MutationObserver(apply);
+                            obs.observe(head, {
+                                childList: true,
+                                subtree: true,
+                                characterData: true,
+                            });
+                            apply();
+                        };
+                        if (document.readyState === 'loading') {
+                            document.addEventListener(
+                                'DOMContentLoaded',
+                                installObserver,
+                                { once: true },
+                            );
+                        } else {
+                            installObserver();
+                        }
+                    })();
+                    """
+                )
+            except Exception as exc:
+                logger.debug(
+                    "%s: failed to install [background] title tag (%s)",
+                    self._platform, exc,
+                )
+
         await self._page.goto(
             self._config.home_url,
             wait_until="domcontentloaded",

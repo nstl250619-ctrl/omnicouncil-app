@@ -325,6 +325,20 @@ class RestartBrowserStrategy:
                     "--disable-features=ChromeWhatsNewUI",
                 ])
 
+            # Non-headless platforms (currently just chatgpt) get an extra
+            # window position + size hint on top of whatever the platform
+            # config supplies, so a recovery that re-launches the browser
+            # can't bring the window back into the user's view. The values
+            # match the initial-launch args in main.py and are deliberately
+            # re-applied here so that even if the platform config loses the
+            # args, the watchdog-driven restart stays invisible.
+            if not headless:
+                # Only add if not already present to avoid duplicates.
+                if not any(a.startswith("--window-position=") for a in extra_args):
+                    extra_args.append("--window-position=-2400,-2400")
+                if not any(a.startswith("--window-size=") for a in extra_args):
+                    extra_args.append("--window-size=1280,800")
+
             launch_args = [
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -346,6 +360,60 @@ class RestartBrowserStrategy:
 
             # 4. Create page and navigate
             new_page = await new_context.new_page()
+
+            # For non-headless platforms, tag the page with a [background]
+            # prefix that survives SPA navigation. The MutationObserver
+            # re-applies it whenever the site's own code rewrites document
+            # title (e.g. ChatGPT appends conversation names). This way if
+            # the window ever does become visible, the user can see at a
+            # glance that it's the OmniCouncil-managed Cloudflare browser,
+            # not a window they opened themselves.
+            if not headless:
+                try:
+                    await new_page.add_init_script(
+                        """
+                        (() => {
+                            const tag = '[background] ';
+                            const apply = () => {
+                                try {
+                                    if (
+                                        document.title &&
+                                        !document.title.startsWith(tag)
+                                    ) {
+                                        document.title = tag + document.title;
+                                    }
+                                } catch (_) {}
+                            };
+                            const installObserver = () => {
+                                const head = document.head || document.documentElement;
+                                if (!head || head.__bgObserved) return;
+                                head.__bgObserved = true;
+                                const obs = new MutationObserver(apply);
+                                obs.observe(head, {
+                                    childList: true,
+                                    subtree: true,
+                                    characterData: true,
+                                });
+                                apply();
+                            };
+                            if (document.readyState === 'loading') {
+                                document.addEventListener(
+                                    'DOMContentLoaded',
+                                    installObserver,
+                                    { once: true },
+                                );
+                            } else {
+                                installObserver();
+                            }
+                        })();
+                        """
+                    )
+                except Exception as exc:
+                    logger.debug(
+                        "%s: failed to install [background] title tag (%s)",
+                        platform, exc,
+                    )
+
             await asyncio.wait_for(
                 new_page.goto(config.home_url, wait_until="domcontentloaded"),
                 timeout=10,
