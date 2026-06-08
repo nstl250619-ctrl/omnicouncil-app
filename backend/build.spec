@@ -17,12 +17,12 @@ a = Analysis(
         (str(backend_dir / 'browser'), 'browser'),
         (str(backend_dir / 'storage'), 'storage'),
         (str(backend_dir / 'config'), 'config'),
-        # Engine packages
-        (str(backend_dir / 'packages' / 'omnicounci1l-core' / 'src' / 'omnicounci1l_core'), 'omnicounci1l_core'),
-        (str(backend_dir / 'packages' / 'comparison-engine' / 'src' / 'omnicounci1l_comparison'), 'omnicounci1l_comparison'),
-        (str(backend_dir / 'packages' / 'consensus-engine' / 'src' / 'omnicounci1l_consensus'), 'omnicounci1l_consensus'),
-        (str(backend_dir / 'packages' / 'conflict-engine' / 'src' / 'omnicounci1l_conflict'), 'omnicounci1l_conflict'),
-        (str(backend_dir / 'packages' / 'judge-engine' / 'src' / 'omnicounci1l_judge'), 'omnicounci1l_judge'),
+        # Engine packages (flat layout — no src/ directory)
+        (str(backend_dir / 'packages' / 'omnicounci1l-core' / 'omnicounci1l_core'), 'omnicounci1l_core'),
+        (str(backend_dir / 'packages' / 'comparison-engine' / 'omnicounci1l_comparison'), 'omnicounci1l_comparison'),
+        (str(backend_dir / 'packages' / 'consensus-engine' / 'omnicounci1l_consensus'), 'omnicounci1l_consensus'),
+        (str(backend_dir / 'packages' / 'conflict-engine' / 'omnicounci1l_conflict'), 'omnicounci1l_conflict'),
+        (str(backend_dir / 'packages' / 'judge-engine' / 'omnicounci1l_judge'), 'omnicounci1l_judge'),
     ],
     hiddenimports=[
         'uvicorn.logging',
