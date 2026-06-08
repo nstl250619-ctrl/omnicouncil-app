@@ -325,14 +325,17 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
     # ── Core: get_page ─────────────────────────────────────
 
     def get_page(self) -> Any:
-        """Return the cached Playwright Page (only when READY).
+        """Return the cached Playwright Page.
+
+        Allowed states: READY, RECOVERING (recovery strategies need
+        page access to perform reload/goto/close).
 
         .. deprecated::
             Prefer :meth:`acquire_page` — it is the only safe way to use
             the page in V2.  Direct ``get_page()`` calls bypass the lease
             and will race with eviction / recovery.
         """
-        if self.state != RuntimeState.READY:
+        if self.state not in (RuntimeState.READY, RuntimeState.RECOVERING):
             raise RuntimeNotReadyError(self.state)
 
         if self._page is None or self._page.is_closed():
