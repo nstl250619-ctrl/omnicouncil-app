@@ -496,6 +496,91 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
         except RecoveryFailedError:
             raise
 
+    # ── Core: manual login ─────────────────────────────────
+
+    async def login(self, timeout_s: int = 300) -> tuple[bool, str]:
+        """Open a visible browser for manual login.
+
+        Launches a non-headless browser, navigates to the platform's
+        home URL, and waits for the user to complete login.  After
+        the user closes the browser or timeout is reached, checks
+        session validity.
+
+        Returns:
+            (success, error_message)
+        """
+        from patchright.async_api import async_playwright
+
+        profile_path = self._profile_manager.get_profile_path(self._platform)
+        profile_path.mkdir(parents=True, exist_ok=True)
+
+        playwright = None
+        browser = None
+        try:
+            playwright = await async_playwright().start()
+            browser = await playwright.chromium.launch_persistent_context(
+                str(profile_path),
+                headless=False,
+                no_viewport=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                ],
+            )
+
+            page = browser.pages[0] if browser.pages else await browser.new_page()
+            await page.goto(
+                self._config.home_url,
+                wait_until="commit",
+                timeout=45000,
+            )
+
+            # Wait for user to close the browser or timeout
+            page_closed = asyncio.Event()
+
+            def on_page_close(*args):
+                page_closed.set()
+
+            page.on("close", on_page_close)
+
+            try:
+                await asyncio.wait_for(page_closed.wait(), timeout=timeout_s)
+            except asyncio.TimeoutError:
+                return False, "登录超时"
+
+            # Save storage state
+            auth_json = profile_path.parent / f"{self._platform}.json"
+            try:
+                await browser.storage_state(path=str(auth_json))
+            except Exception:
+                pass
+
+            # Wait for cookies to flush
+            await asyncio.sleep(2)
+
+            # Check session
+            session_state = await self._session_validator.validate_offline()
+            from shared.types import SessionState
+            if session_state == SessionState.AUTHENTICATED:
+                return True, ""
+
+            # Retry once
+            await asyncio.sleep(3)
+            session_state = await self._session_validator.validate_offline()
+            if session_state == SessionState.AUTHENTICATED:
+                return True, ""
+
+            return False, "未检测到登录状态"
+
+        except Exception as e:
+            return False, str(e)
+        finally:
+            if browser:
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
+
     # ── Browser lifecycle ──────────────────────────────────
 
     async def _launch_browser(self) -> None:

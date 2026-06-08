@@ -127,8 +127,18 @@ async def test_restart_browser_adds_window_args_even_if_config_lost_them() -> No
 
     args = playwright.chromium.launch_persistent_context.call_args.kwargs["args"]
     joined = " ".join(args)
+    # Even with config.extra_browser_args=[], the defensive block must
+    # still inject the full hide-window set (window-position, window-size,
+    # --app=, --no-startup-window, --disable-notifications, --disable-infobars).
     assert "--window-position=-32000,-32000" in joined
     assert "--window-size=1,1" in joined
+    assert "--app=https://chatgpt.com" in joined, (
+        "Defensive injection must add --app= so the taskbar icon disappears "
+        "even if the platform config loses the args."
+    )
+    assert "--no-startup-window" in joined
+    assert "--disable-notifications" in joined
+    assert "--disable-infobars" in joined
 
 
 @pytest.mark.asyncio

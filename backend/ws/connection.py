@@ -376,7 +376,7 @@ async def handle_reauth(data: dict):
 
 
 async def _do_recovery(ai_id: str, engine):
-    """Run recovery in background and broadcast result."""
+    """Run recovery in background. If recovery fails, open manual login."""
     try:
         logger.info("Starting recovery for %s", ai_id)
         success = await engine.attempt_recovery()
@@ -388,16 +388,38 @@ async def _do_recovery(ai_id: str, engine):
                 "data": {"ai_id": ai_id, "status": "authenticated", "message": "恢复成功"}
             })
             logger.info("Broadcasted authenticated for %s", ai_id)
+            return
+
+        # Recovery failed — try manual login
+        logger.info("Recovery failed for %s, attempting manual login", ai_id)
+    except Exception as e:
+        logger.warning("Recovery exception for %s: %s, attempting manual login", ai_id, e)
+
+    # Manual login fallback
+    try:
+        await ws_manager.broadcast({
+            "type": "auth_status",
+            "data": {"ai_id": ai_id, "status": "connecting", "message": "正在打开登录窗口..."}
+        })
+
+        success, error_msg = await engine.login(timeout_s=300)
+
+        if success:
+            await ws_manager.broadcast({
+                "type": "auth_status",
+                "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
+            })
+            logger.info("Manual login succeeded for %s", ai_id)
         else:
             await ws_manager.broadcast({
                 "type": "auth_status",
-                "data": {"ai_id": ai_id, "status": "failed", "message": "恢复失败"}
+                "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {error_msg}"}
             })
-            logger.warning("Broadcasted recovery failed for %s", ai_id)
+            logger.warning("Manual login failed for %s: %s", ai_id, error_msg)
     except Exception as e:
         tb = traceback.format_exc()
-        logger.error("RECOVERY EXCEPTION for %s: %s\n%s", ai_id, e, tb)
+        logger.error("LOGIN EXCEPTION for %s: %s\n%s", ai_id, e, tb)
         await ws_manager.broadcast({
             "type": "auth_status",
-            "data": {"ai_id": ai_id, "status": "failed", "message": f"恢复异常: {str(e)}"}
+            "data": {"ai_id": ai_id, "status": "failed", "message": f"登录异常: {str(e)}"}
         })
