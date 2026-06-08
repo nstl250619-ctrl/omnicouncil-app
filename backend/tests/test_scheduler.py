@@ -27,7 +27,7 @@ class FakeAIManager:
             ProviderStatus(ai_id="deepseek", ai_name="DeepSeek", status=AIStatus.READY),
             ProviderStatus(ai_id="qianwen", ai_name="Qianwen", status=AIStatus.READY),
         ]
-        self._provider_manager = _FakeProviderManager()
+        self._query_adapters = _FakeQueryAdapters()
 
     def get_ready_ais(self):
         return self._ais
@@ -40,8 +40,12 @@ class FakeAIManager:
         )
 
 
-class _FakeProviderManager:
-    """Minimal provider manager mock for SchedulerCenter."""
+class _FakeQueryAdapters:
+    """Minimal query-adapter registry mock for SchedulerCenter.
+
+    Mirrors the V2 AIAccessManager._query_adapters shape — a dict-like
+    object whose .get(ai_id) returns either a query adapter or None.
+    """
 
     def get(self, ai_id: str):
         return None

@@ -246,8 +246,16 @@ class SchedulerCenter:
         options = SubmitOptions(timeout_ms=self._timeout.hard_timeout_ms)
 
         # Get adapter name for events (best-effort)
-        adapter = self._ai_manager._provider_manager.get(ai_id)
-        ai_name = adapter.ai_name if adapter else ai_id
+        adapter = self._ai_manager._query_adapters.get(ai_id)
+        # V2 adapter exposes the display name via .config().display_name;
+        # the legacy adapter.ai_name attribute was removed during the V2 refactor.
+        if adapter is not None:
+            try:
+                ai_name = adapter.config().display_name
+            except Exception:
+                ai_name = ai_id
+        else:
+            ai_name = ai_id
 
         # Emit started once before any attempt
         await self._event_bus.emit(
@@ -305,7 +313,7 @@ class SchedulerCenter:
         if cb:
             cb.record_failure()
         # Reset the provider's internal state so it's dispatched again next time
-        adapter = self._ai_manager._provider_manager.get(ai_id)
+        adapter = self._ai_manager._query_adapters.get(ai_id)
         if adapter:
             from shared.types import AIStatus
             if hasattr(adapter, "_status") and adapter._status != AIStatus.READY:
