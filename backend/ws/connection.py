@@ -376,7 +376,11 @@ async def handle_reauth(data: dict):
 
 
 async def _do_recovery(ai_id: str, engine):
-    """Run recovery in background. If recovery fails, open manual login."""
+    """Run recovery in background. If recovery fails, open manual login.
+
+    After successful login, restarts the engine so the main browser
+    context picks up the new cookies from disk.
+    """
     try:
         logger.info("Starting recovery for %s", ai_id)
         success = await engine.attempt_recovery()
@@ -405,6 +409,15 @@ async def _do_recovery(ai_id: str, engine):
         success, error_msg = await engine.login(timeout_s=300)
 
         if success:
+            # Login succeeded — restart engine to pick up new cookies
+            logger.info("Login succeeded for %s, restarting engine to load new cookies", ai_id)
+            try:
+                await engine.shutdown()
+                await engine.boot()
+                logger.info("Engine restarted for %s, new state: %s", ai_id, engine.state.value)
+            except Exception as restart_err:
+                logger.warning("Engine restart failed for %s: %s", ai_id, restart_err)
+
             await ws_manager.broadcast({
                 "type": "auth_status",
                 "data": {"ai_id": ai_id, "status": "authenticated", "message": "登录成功"}
