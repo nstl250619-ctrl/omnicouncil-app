@@ -25,6 +25,15 @@ def build():
         [sys.executable, "-m", "pip", "install", "-r", str(BACKEND / "requirements.txt"), "pyinstaller", "-q"],
         check=True,
     )
+    # Install engine packages (required by main.py imports)
+    for pkg_dir in sorted((BACKEND / "packages").iterdir()):
+        if (pkg_dir / "pyproject.toml").exists():
+            print(f"  Installing engine package: {pkg_dir.name}")
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-e", str(pkg_dir), "-q"],
+                check=True,
+            )
+    print("Engine packages installed.")
 
     # Run PyInstaller
     print("Running PyInstaller...")
