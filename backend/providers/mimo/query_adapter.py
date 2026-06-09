@@ -97,6 +97,28 @@ class MiMoQueryAdapter(BaseQueryAdapter):
             pass
         return False
 
+    # ── Input element detection ──────────────────────────────
+
+    async def _find_input(self, page: Any) -> Any:
+        """Locate the chat input element."""
+        selectors = [
+            "[contenteditable='true'][role='textbox']",
+            "[contenteditable='true']",
+            "div[contenteditable='true']",
+            "textarea",
+            "[role='textbox']",
+            "main textarea",
+            "main [contenteditable='true']",
+        ]
+        for sel in selectors:
+            try:
+                el = page.locator(sel).first
+                if await el.is_visible(timeout=2000):
+                    return el
+            except Exception:
+                continue
+        return None
+
     # ── Pre-flight check ────────────────────────────────────
 
     async def pre_flight_check(self, page: Any) -> tuple[bool, str]:
