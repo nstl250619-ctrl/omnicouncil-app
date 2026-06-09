@@ -514,10 +514,16 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
         Returns:
             (success, error_message)
         """
+        import os
         from patchright.async_api import async_playwright
 
         profile_path = self._profile_manager.get_profile_path(self._platform)
         profile_path.mkdir(parents=True, exist_ok=True)
+
+        # Use the real display (:0) instead of Xvfb (:99)
+        # so the browser window is visible to the user
+        original_display = os.environ.get("DISPLAY")
+        os.environ["DISPLAY"] = ":0"
 
         playwright = None
         browser = None
@@ -585,6 +591,9 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
                     await browser.close()
                 except Exception:
                     pass
+            # Restore original DISPLAY
+            if original_display is not None:
+                os.environ["DISPLAY"] = original_display
 
     # ── Browser lifecycle ──────────────────────────────────
 
