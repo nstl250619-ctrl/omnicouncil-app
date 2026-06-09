@@ -294,15 +294,20 @@ def _load_platform_configs() -> dict[str, PlatformConfig]:
 
 # ========== Query adapters ==========
 
-def _create_query_adapters() -> dict:
-    """Create query adapters for all platforms."""
+def _create_query_adapters(configs: dict[str, PlatformConfig] | None = None) -> dict:
+    """Create query adapters for all platforms.
+
+    Passes PageInteractionConfig to adapters so they can use
+    config-driven selectors as fallback.
+    """
+    cfg = configs or {}
     return {
-        "deepseek": DeepSeekQueryAdapter(),
-        "qianwen": QianwenQueryAdapter(),
-        "gemini": GeminiQueryAdapter(),
-        "chatgpt": ChatGPTQueryAdapter(),
-        "mimo": MiMoQueryAdapter(),
-        "grok": GrokQueryAdapter(),
+        "deepseek": DeepSeekQueryAdapter(page_config=cfg.get("deepseek", PlatformConfig(name="", home_url="")).page),
+        "qianwen": QianwenQueryAdapter(page_config=cfg.get("qianwen", PlatformConfig(name="", home_url="")).page),
+        "gemini": GeminiQueryAdapter(page_config=cfg.get("gemini", PlatformConfig(name="", home_url="")).page),
+        "chatgpt": ChatGPTQueryAdapter(page_config=cfg.get("chatgpt", PlatformConfig(name="", home_url="")).page),
+        "mimo": MiMoQueryAdapter(page_config=cfg.get("mimo", PlatformConfig(name="", home_url="")).page),
+        "grok": GrokQueryAdapter(page_config=cfg.get("grok", PlatformConfig(name="", home_url="")).page),
     }
 
 
@@ -339,8 +344,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     for platform, result in boot_results.items():
         logger.info("  %s: %s", platform, result.value)
 
-    # Create query adapters
-    query_adapters = _create_query_adapters()
+    # Create query adapters (pass configs for page interaction)
+    query_adapters = _create_query_adapters(active_configs)
 
     # Initialize AIAccessManager
     state.ai_manager = AIAccessManager(

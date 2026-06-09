@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from engine.contracts import (
+    PageInteractionConfig,
     QueryAdapter as QueryAdapterABC,
 )
 from engine.contracts import (
@@ -55,15 +56,22 @@ class BaseQueryAdapter(QueryAdapterABC):
 
     Subclasses must implement:
         - ``config()`` → QueryAdapterConfig
-        - ``_find_input(page)`` → element or None
-        - ``_extract_response(page, prompt, timeout_ms)`` → str
 
     Optional overrides:
+        - ``_find_input(page)`` → element or None (default uses page config)
+        - ``_extract_response(page, prompt, timeout_ms)`` → str (default uses page config)
         - ``_is_ui_element(text)`` → bool
         - ``pre_flight_check(page)`` → (ok, reason)
         - ``send_prompt(page, prompt)`` — for custom send logic
         - ``wait_for_response(page, timeout_ms)`` — for custom wait logic
+
+    If ``page_config`` is provided, default implementations of
+    ``_find_input`` and ``_extract_response`` will use the configured
+    selectors.  Subclasses can still override for platform-specific logic.
     """
+
+    def __init__(self, page_config: PageInteractionConfig | None = None) -> None:
+        self._page_config = page_config
 
     # ── Abstract: configuration ────────────────────────────
 
@@ -72,40 +80,88 @@ class BaseQueryAdapter(QueryAdapterABC):
         """Return this adapter's configuration."""
         ...
 
-    # ── Abstract: DOM interaction ──────────────────────────
+    # ── DOM interaction (config-driven defaults) ──────────
 
-    @abstractmethod
     async def _find_input(self, page: Any) -> Any:
         """Locate the input element on the page.
 
-        Returns:
-            A Playwright element handle, or None if not found.
+        Default implementation uses ``page_config.input_selectors``.
+        Override for platform-specific logic.
         """
-        ...
+        selectors = self._page_config.input_selectors if self._page_config else [
+            "textarea", "[contenteditable='true']", "[role='textbox']",
+        ]
+        for sel in selectors:
+            try:
+                el = page.locator(sel).first
+                if await el.is_visible(timeout=2000):
+                    return el
+            except Exception:
+                continue
+        return None
 
-    @abstractmethod
     async def _extract_response(self, page: Any, prompt: str, timeout_ms: int) -> str:
         """Extract the AI's response text from the page.
 
-        This is the core platform-specific logic.  Implementations
-        should:
-            1. Try DOM selectors for the response container.
-            2. Fall back to body text extraction.
-            3. Use idle detection (content unchanged for N seconds)
-               to determine response completion.
-
-        Args:
-            page: Playwright Page.
-            prompt: The original prompt (for echo filtering).
-            timeout_ms: Maximum extraction time.
-
-        Returns:
-            The extracted response text.
-
-        Raises:
-            TimeoutError: If response doesn't stabilise in time.
+        Default implementation uses ``page_config.response_selectors``
+        with idle detection.  Override for platform-specific logic.
         """
-        ...
+        selectors = self._page_config.response_selectors if self._page_config else [
+            "[data-role='assistant']",
+            "[class*='response']",
+            "[class*='message']",
+        ]
+        ui_elements = set(self._page_config.ui_elements) if self._page_config else set()
+
+        idle_ms = 3000
+        last_response = ""
+        idle_start = None
+        deadline = time.time() + timeout_ms / 1000
+
+        while time.time() < deadline:
+            # Check stop button
+            stop_btn = await self._find_stop_button(page)
+            if stop_btn is not None:
+                try:
+                    if await stop_btn.is_visible(timeout=500):
+                        idle_start = None
+                        await page.wait_for_timeout(500)
+                        continue
+                except Exception:
+                    pass
+
+            # Try configured selectors
+            response_text = ""
+            for sel in selectors:
+                try:
+                    elements = page.locator(sel)
+                    count = await elements.count()
+                    if count > 0:
+                        text = await elements.nth(count - 1).inner_text(timeout=2000)
+                        text = text.replace("\xa0", " ").strip()
+                        if text and len(text) > 2 and prompt not in text:
+                            clean = "\n".join(
+                                ln for ln in text.split("\n")
+                                if not self._is_ui_element(ln.strip()) and ln.strip() not in ui_elements
+                            )
+                            if clean:
+                                response_text = clean
+                                break
+                except Exception:
+                    continue
+
+            if response_text:
+                if response_text != last_response:
+                    last_response = response_text
+                    idle_start = time.time()
+                elif idle_start and (time.time() - idle_start) * 1000 >= idle_ms:
+                    return response_text
+
+            await page.wait_for_timeout(500)
+
+        if last_response:
+            return last_response
+        raise TimeoutError(f"{self.config().display_name} response timed out")
 
     # ── Public API: execute ────────────────────────────────
 
