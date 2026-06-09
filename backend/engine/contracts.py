@@ -85,7 +85,7 @@ TRANSITIONS: dict[RuntimeState, set[RuntimeState]] = {
     RuntimeState.READY:            {RuntimeState.DEGRADED, RuntimeState.SHUTDOWN, RuntimeState.LOGIN_REQUIRED},
     RuntimeState.DEGRADED:         {RuntimeState.RECOVERING, RuntimeState.READY, RuntimeState.UNAVAILABLE},
     RuntimeState.LOGIN_REQUIRED:   {RuntimeState.RECOVERING, RuntimeState.UNAVAILABLE},
-    RuntimeState.RECOVERING:       {RuntimeState.READY, RuntimeState.LOGIN_REQUIRED, RuntimeState.UNAVAILABLE},
+    RuntimeState.RECOVERING:       {RuntimeState.READY, RuntimeState.LOGIN_REQUIRED, RuntimeState.UNAVAILABLE, RuntimeState.SHUTDOWN},
     RuntimeState.UNAVAILABLE:      {RuntimeState.RECOVERING, RuntimeState.SHUTDOWN, RuntimeState.INITIALIZING},
     RuntimeState.SHUTDOWN:         {RuntimeState.INITIALIZING},
 }
