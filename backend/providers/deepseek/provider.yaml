@@ -1,0 +1,46 @@
+id: deepseek
+display_name: DeepSeek
+home_url: https://chat.deepseek.com
+headless: true
+heartbeat_interval_s: 60
+max_recovery_attempts: 3
+recovery_cooldown_s: 30
+session_check_mode: offline_then_online
+
+auth:
+  method: cookie
+  cookie:
+    domains: [chat.deepseek.com]
+    names: [sessionid, token, auth]
+    match: prefix
+
+page:
+  input_selectors:
+    - textarea
+    - div[contenteditable='true']
+  response_selectors:
+    - '[data-role="assistant"]'
+    - '[class*="response"]'
+    - '[class*="message-content"]'
+  stop_button_selectors:
+    - 'button[aria-label="Stop generating"]'
+    - 'button:has-text("Stop")'
+  ui_elements:
+    - DeepSeek
+    - New chat
+    - Settings
+    - Copy
+  login_url_patterns:
+    - signin
+    - sign-in
+    - login
+    - auth0
+  cloudflare_check: false
+
+capabilities:
+  supports_streaming: true
+  supports_file_upload: true
+  supports_image: false
+  max_input_chars: 10000
+  response_format: markdown
+  requires_chat_mode: false

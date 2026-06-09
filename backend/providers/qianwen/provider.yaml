@@ -1,0 +1,45 @@
+id: qianwen
+display_name: Qianwen
+home_url: https://www.qianwen.com/qianwen
+headless: true
+heartbeat_interval_s: 60
+max_recovery_attempts: 3
+recovery_cooldown_s: 30
+session_check_mode: offline_then_online
+
+auth:
+  method: cookie
+  cookie:
+    domains: [qianwen.com]
+    names: [sid, login_, ALI_, Session, cookie2]
+    match: prefix
+
+page:
+  input_selectors:
+    - "[contenteditable='true'][role='textbox']"
+    - "[contenteditable='true']"
+    - textarea
+  response_selectors:
+    - "[class*='message']"
+    - "[class*='response']"
+    - "[class*='assistant']"
+  stop_button_selectors:
+    - "button:has-text('停止')"
+    - 'button[aria-label="Stop"]'
+  ui_elements:
+    - 千问
+    - 新对话
+    - 设置
+    - 复制
+  login_url_patterns:
+    - login
+    - signin
+  cloudflare_check: false
+
+capabilities:
+  supports_streaming: true
+  supports_file_upload: true
+  supports_image: false
+  max_input_chars: 10000
+  response_format: markdown
+  requires_chat_mode: false

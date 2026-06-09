@@ -1,0 +1,59 @@
+id: chatgpt
+display_name: ChatGPT
+home_url: https://chatgpt.com
+headless: false
+heartbeat_interval_s: 60
+max_recovery_attempts: 3
+recovery_cooldown_s: 30
+session_check_mode: offline_then_online
+extra_browser_args:
+  - "--window-position=-32000,-32000"
+  - "--window-size=1,1"
+  - "--app=https://chatgpt.com"
+  - "--no-startup-window"
+  - "--disable-notifications"
+  - "--disable-infobars"
+
+auth:
+  method: cookie
+  cookie:
+    domains: [chatgpt.com]
+    names: ["__Secure-next-auth.session-token", "__Host-next-auth.csrf-token"]
+    match: prefix
+
+page:
+  input_selectors:
+    - "#prompt-textarea"
+    - "[contenteditable='true']"
+    - textarea
+    - "div[contenteditable='true']"
+    - "[data-orientation='vertical'] textarea"
+    - "main textarea"
+    - "[role='textbox']"
+  response_selectors:
+    - "[data-message-author-role='assistant']"
+    - "[class*='message']"
+    - "[class*='response']"
+  stop_button_selectors:
+    - 'button[aria-label="Stop generating"]'
+    - 'button:has-text("Stop")'
+    - 'button:has-text("停止")'
+  ui_elements:
+    - ChatGPT
+    - New chat
+    - Settings
+    - Copy
+    - Regenerate
+  login_url_patterns:
+    - "/auth/login"
+    - auth0.openai.com
+    - "/login"
+  cloudflare_check: true
+
+capabilities:
+  supports_streaming: true
+  supports_file_upload: true
+  supports_image: true
+  max_input_chars: 10000
+  response_format: markdown
+  requires_chat_mode: false

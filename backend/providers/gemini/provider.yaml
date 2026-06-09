@@ -1,0 +1,51 @@
+id: gemini
+display_name: Gemini
+home_url: https://gemini.google.com/app
+headless: true
+heartbeat_interval_s: 60
+max_recovery_attempts: 3
+recovery_cooldown_s: 30
+session_check_mode: offline_then_online
+
+auth:
+  method: cookie
+  cookie:
+    domains: [google.com]
+    names: [SAPISID, SSID, "__Secure-", OSID]
+    match: prefix
+
+page:
+  input_selectors:
+    - "[contenteditable='true']"
+    - "div[contenteditable='true']"
+    - textarea
+    - "[role='textbox']"
+    - "main textarea"
+    - "gemini-app textarea"
+  response_selectors:
+    - '[data-role="assistant"]'
+    - '[class*="response"]'
+    - '[class*="model-response"]'
+    - '[class*="message-content"]'
+  stop_button_selectors:
+    - 'button[aria-label="Stop"]'
+    - 'button:has-text("Stop")'
+  ui_elements:
+    - Gemini
+    - New chat
+    - Settings
+    - Copy
+  login_url_patterns:
+    - signin
+    - sign-in
+    - login
+    - accounts.google.com
+  cloudflare_check: false
+
+capabilities:
+  supports_streaming: true
+  supports_file_upload: true
+  supports_image: true
+  max_input_chars: 10000
+  response_format: markdown
+  requires_chat_mode: false
