@@ -79,14 +79,18 @@ function ResponseCard({ aiId, response, onRetry }: { aiId: string; response: AIR
 
         {response.status === 'streaming' && (
           <div className="card-streaming">
-            <div className="markdown-body" dangerouslySetInnerHTML={{ __html: response.content || '思考中...' }} />
+            <div className="markdown-body">
+              <ReactMarkdown>{response.content || '思考中...'}</ReactMarkdown>
+            </div>
             <span className="cursor" style={{ color }}>▊</span>
           </div>
         )}
 
         {response.status === 'completed' && (
           <div className="card-completed">
-            <div className="markdown-body" dangerouslySetInnerHTML={{ __html: response.content }} />
+            <div className="markdown-body">
+              <ReactMarkdown>{response.content}</ReactMarkdown>
+            </div>
           </div>
         )}
 

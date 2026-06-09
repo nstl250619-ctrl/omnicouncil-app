@@ -151,7 +151,7 @@ class ChatGPTQueryAdapter(BaseQueryAdapter):
                 elements = page.locator(sel)
                 count = await elements.count()
                 if count > 0:
-                    text = await elements.nth(count - 1).inner_html(timeout=2000)
+                    text = await elements.nth(count - 1).inner_text(timeout=2000)
                     text = text.replace("\xa0", " ").strip()
                     if text and len(text) > 2 and prompt not in text:
                         clean = "\n".join(ln for ln in text.split("\n") if not self._is_ui_element(ln.strip()))

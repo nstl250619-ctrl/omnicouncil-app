@@ -144,8 +144,16 @@ class BaseQueryAdapter(QueryAdapterABC):
             await self.send_prompt(page, prompt)
             await page.wait_for_timeout(1500)
 
-            # Wait for + extract response
-            response_text = await self._extract_response(page, prompt, timeout_ms)
+            # Wait for response to complete
+            await self.wait_for_response(page, timeout_ms)
+
+            # Try to get Markdown via copy button first
+            markdown = await self._try_copy_markdown(page)
+            if markdown:
+                response_text = markdown
+            else:
+                # Fallback: extract HTML from page
+                response_text = await self._extract_response(page, prompt, timeout_ms)
 
             return QueryResult(
                 request=QueryRequest(platform=cfg.platform, prompt=prompt),
@@ -282,6 +290,51 @@ class BaseQueryAdapter(QueryAdapterABC):
 
         if not last_content:
             raise QueryTimeoutError(self.config().platform, timeout_ms)
+
+    async def _try_copy_markdown(self, page: Any) -> str | None:
+        """Try to get response as Markdown by clicking the copy button.
+
+        Intercepts clipboard.writeText to capture the Markdown content
+        that AI platforms copy when the user clicks "Copy".
+
+        Returns Markdown string if successful, None otherwise.
+        """
+        # Inject clipboard interceptor
+        await page.evaluate("""() => {
+            window.__copiedMarkdown = null;
+            const originalWrite = navigator.clipboard.writeText;
+            navigator.clipboard.writeText = (text) => {
+                window.__copiedMarkdown = text;
+                return originalWrite.call(navigator.clipboard, text);
+            };
+        }""")
+
+        # Try to find and click the copy button
+        copy_selectors = [
+            'button[aria-label="Copy"]',
+            'button[aria-label="复制"]',
+            'button[aria-label="Copy response"]',
+            'button[aria-label="Copy to clipboard"]',
+            'button:has(svg[class*="copy"])',
+            'button:has-text("Copy")',
+            'button:has-text("复制")',
+        ]
+
+        for sel in copy_selectors:
+            try:
+                btn = page.locator(sel).last  # Last = most recent response
+                if await btn.is_visible(timeout=500):
+                    await btn.click()
+                    await page.wait_for_timeout(500)
+
+                    # Read intercepted content
+                    markdown = await page.evaluate("() => window.__copiedMarkdown")
+                    if markdown and len(markdown) > 10:
+                        return markdown
+            except Exception:
+                continue
+
+        return None
 
     async def _find_stop_button(self, page: Any) -> Any:
         """Find the 'Stop generating' button. Override for platform-specific selectors."""

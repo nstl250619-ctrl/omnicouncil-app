@@ -91,7 +91,7 @@ class DeepSeekQueryAdapter(BaseQueryAdapter):
                 count = await elements.count()
                 if count > 0:
                     last_el = elements.nth(count - 1)
-                    text = await last_el.inner_html(timeout=2000)
+                    text = await last_el.inner_text(timeout=2000)
                     text = text.replace("\xa0", " ").strip()
                     if text and len(text) > 2 and prompt not in text:
                         clean = "\n".join(
