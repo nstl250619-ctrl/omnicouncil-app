@@ -14,7 +14,7 @@ class QianwenQueryAdapter(BaseQueryAdapter):
         return QueryAdapterConfig(
             platform="qianwen",
             display_name="千问",
-            home_url="https://www.qianwen.com/qianwen",
+            home_url="https://www.qianwen.com/?source=tongyigw",
             icon_color="#F59E0B",
             icon_emoji="🟠",
         )

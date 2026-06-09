@@ -73,7 +73,7 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
     ),
     "qianwen": PlatformConfig(
         name="qianwen",
-        home_url="https://www.qianwen.com/qianwen",
+        home_url="https://www.qianwen.com/?source=tongyigw",
         headless=True,
         heartbeat_interval_s=60,
         max_recovery_attempts=3,

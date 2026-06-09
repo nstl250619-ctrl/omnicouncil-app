@@ -217,13 +217,9 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
 
   const showWebPage = useCallback((id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const p = mergedPlatforms.find((x) => x.id === id);
-    if (p?.homeUrl) {
-      window.open(p.homeUrl, '_blank', 'noopener');
-    } else if (p?.url) {
-      window.open(`https://${p.url}`, '_blank', 'noopener');
-    }
-  }, [mergedPlatforms]);
+    // Open in built-in Chromium via backend login API (not window.open which uses Edge)
+    reconnectPlatform(id);
+  }, [reconnectPlatform]);
 
   const addPlatform = useCallback(async () => {
     if (!newName.trim() || !newUrl.trim()) return;
