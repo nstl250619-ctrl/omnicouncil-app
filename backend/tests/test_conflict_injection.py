@@ -91,6 +91,7 @@ def _make_engine(platform: str = "chatgpt") -> AIRuntimeEngine:
     engine._context = MagicMock()
     engine._watchdog_task = None
     engine._evict_task = None
+    engine._session_lifecycle = None  # Phase 1: no lifecycle in test mock
 
     # Mock sub-components
     engine._session_validator = MagicMock()

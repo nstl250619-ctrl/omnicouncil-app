@@ -127,15 +127,30 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
             auth_manager=self._auth_manager,
         )
 
-        # Session lifecycle (only if auth config exists)
+        # Session lifecycle + recovery (only if auth config exists)
         self._session_lifecycle = None
+        self._session_bus = None
+        self._login_recovery = None
         if config.auth is not None:
+            from auth.login_recovery import LoginRecoveryHandler
             from auth.session_lifecycle import SessionLifecycle
+            from runtime.session_bus import SessionStateBus
+
+            self._session_bus = SessionStateBus()
+            self._login_recovery = LoginRecoveryHandler(
+                platform=self._platform,
+                auth_manager=self._auth_manager,
+                session_bus=self._session_bus,
+            )
             self._session_lifecycle = SessionLifecycle(
                 platform=self._platform,
                 auth_manager=self._auth_manager,
                 check_interval_s=config.heartbeat_interval_s,
+                login_recovery=self._login_recovery,
+                session_bus=self._session_bus,
             )
+            # Subscribe to login success from other instances
+            self._session_bus.subscribe(self._platform, self._on_session_state_change)
 
         # Health monitor
         self._health_monitor = health_monitor or HealthMonitor(
@@ -385,6 +400,17 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
             self._metrics.page_busy_rejections += 1
             raise RuntimeNotReadyError(self.state)
 
+        # Block queries during session recovery
+        if self._session_lifecycle is not None:
+            from auth.session_lifecycle import LifecycleState
+            if self._session_lifecycle.state in (
+                LifecycleState.RECOVERY_PENDING,
+                LifecycleState.RECOVERY_IN_PROGRESS,
+                LifecycleState.LOGIN_REQUIRED,
+            ):
+                self._metrics.page_busy_rejections += 1
+                raise RuntimeNotReadyError(self.state)
+
         # P0-2: opportunistic eviction — check both time-based and liveness
         try:
             # Check if page is closed/crashed (not just stale)
@@ -515,6 +541,17 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
             uptime_seconds=time.time() - (self._page_created_at or time.time()),
         )
 
+    # ── Session state bus callback ──────────────────────────
+
+    def _on_session_state_change(self, platform: str, state: str) -> None:
+        """Callback from SessionStateBus when another instance logs in."""
+        if platform != self._platform:
+            return
+        if state in ("valid", "authenticated"):
+            logger.info("%s: login detected from another instance, notifying lifecycle", platform)
+            if self._session_lifecycle is not None:
+                self._session_lifecycle.notify_login_success()
+
     # ── Core: attempt_recovery ─────────────────────────────
 
     async def attempt_recovery(self) -> bool:
@@ -596,12 +633,17 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
             session_state = await self._session_validator.validate_offline()
             from shared.types import SessionState
             if session_state == SessionState.AUTHENTICATED:
+                # Notify SessionStateBus so other instances know
+                if self._session_bus is not None:
+                    await self._session_bus.emit(self._platform, "valid")
                 return True, ""
 
             # Retry once
             await asyncio.sleep(3)
             session_state = await self._session_validator.validate_offline()
             if session_state == SessionState.AUTHENTICATED:
+                if self._session_bus is not None:
+                    await self._session_bus.emit(self._platform, "valid")
                 return True, ""
 
             return False, "未检测到登录状态"

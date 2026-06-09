@@ -99,6 +99,7 @@ def make_engine(name: str) -> AIRuntimeEngine:
 
     # Watchdog
     engine._watchdog_task = None
+    engine._session_lifecycle = None  # Phase 1: no lifecycle in test mock
 
     # Phase 3-5 lease control (P1-3: real PageGuard)
     from runtime.page_guard import PageGuard
