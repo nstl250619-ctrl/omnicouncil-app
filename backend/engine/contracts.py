@@ -493,6 +493,8 @@ class PageInteractionConfig:
     login_url_patterns: list[str] = field(default_factory=list)
     cloudflare_check: bool = False
     chat_mode_selector: str | None = None
+    fallback_input_selectors: list[str] = field(default_factory=list)
+    fallback_response_selectors: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
