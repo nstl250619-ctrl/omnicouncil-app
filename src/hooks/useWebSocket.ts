@@ -6,8 +6,11 @@ const RECONNECT_DELAY = 2000;
 const HEARTBEAT_INTERVAL = 15000;
 
 export interface HealthEvent {
-  type: 'session_expired' | 'recovery_success' | 'ai_unavailable';
+  type: 'session_expired' | 'recovery_success' | 'ai_unavailable'
+    | 'session:login_required' | 'session:recovery_pending'
+    | 'session:recovery_in_progress' | 'selector:degraded';
   ai_id: string;
+  platform?: string;
   message: string;
 }
 

@@ -3,9 +3,10 @@ import { useWebSocket, type HealthEvent } from './hooks/useWebSocket';
 import { useAppStore } from './stores/appStore';
 import { PlatformSetupPage } from './pages/PlatformSetupPage';
 import { ConsolePage } from './pages/ConsolePage';
+import { DashboardPage } from './pages/DashboardPage';
 import { ErrorToast } from './components/ErrorToast';
 
-type Page = 'platform-setup' | 'console';
+type Page = 'platform-setup' | 'console' | 'dashboard';
 
 /** Toast entry for health events */
 interface ToastEntry {
@@ -21,7 +22,7 @@ let toastId = 0;
 
 function App() {
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
-  const [currentPage, setCurrentPage] = useState<Page>('console');
+  const [currentPage, setCurrentPage] = useState<Page>('dashboard');
 
   // Helper to add health toasts
   const addToast = useCallback((entry: Omit<ToastEntry, 'id'>) => {
@@ -37,7 +38,7 @@ function App() {
     (event: HealthEvent) => {
       const names: Record<string, string> = {
         deepseek: 'DeepSeek', gemini: 'Gemini', chatgpt: 'ChatGPT',
-        qianwen: '千问', mimo: 'MiMo', claude: 'Claude',
+        qianwen: '千问', mimo: 'MiMo', grok: 'Grok',
       };
       const displayName = names[event.ai_id] || event.ai_id;
 
@@ -108,13 +109,21 @@ function App() {
     );
   }
 
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'dashboard':
+        return <DashboardPage onNavigateToConsole={() => setCurrentPage('console')} />;
+      case 'platform-setup':
+        return <PlatformSetupPage onNavigateToConsole={() => setCurrentPage('console')} />;
+      case 'console':
+      default:
+        return <ConsolePage onNavigateToPlatforms={() => setCurrentPage('platform-setup')} />;
+    }
+  };
+
   return (
     <div className="app-wrapper">
-      {currentPage === 'platform-setup' ? (
-        <PlatformSetupPage onNavigateToConsole={() => setCurrentPage('console')} />
-      ) : (
-        <ConsolePage onNavigateToPlatforms={() => setCurrentPage('platform-setup')} />
-      )}
+      {renderPage()}
       {error && (
         <ErrorToast
           error={error.message}
