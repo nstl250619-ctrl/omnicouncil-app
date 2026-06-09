@@ -127,6 +127,16 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
             auth_manager=self._auth_manager,
         )
 
+        # Session lifecycle (only if auth config exists)
+        self._session_lifecycle = None
+        if config.auth is not None:
+            from auth.session_lifecycle import SessionLifecycle
+            self._session_lifecycle = SessionLifecycle(
+                platform=self._platform,
+                auth_manager=self._auth_manager,
+                check_interval_s=config.heartbeat_interval_s,
+            )
+
         # Health monitor
         self._health_monitor = health_monitor or HealthMonitor(
             interval_s=config.heartbeat_interval_s,
@@ -253,6 +263,10 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
                 # Start watchdog for visible windows (ChatGPT)
                 if not self._config.headless:
                     self._start_watchdog()
+                # Start session lifecycle probe (if auth configured)
+                if self._session_lifecycle is not None:
+                    profile_dir = str(self._profile_manager.get_profile_path(self._platform).parent)
+                    self._session_lifecycle.start(self._page, profile_dir)
             else:
                 await self._state_machine.transition(
                     RuntimeState.LOGIN_REQUIRED,
@@ -275,6 +289,10 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
         """Gracefully shut down: stop heartbeat, close browser, → SHUTDOWN."""
         if self.state == RuntimeState.SHUTDOWN:
             return
+
+        # Stop session lifecycle
+        if self._session_lifecycle is not None:
+            await self._session_lifecycle.stop()
 
         # Stop watchdog
         if self._watchdog_task is not None:
