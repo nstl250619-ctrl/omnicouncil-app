@@ -260,16 +260,25 @@ def register_routes(app) -> None:
         # Recovery failed — open manual login in background
         async def _do_login():
             try:
+                # Shutdown engine first to release the profile directory
+                logger.info("Shutting down engine for %s before login", name)
+                await engine.shutdown()
+
                 success, error_msg = await engine.login(timeout_s=300)
                 if success:
                     # Restart engine to pick up new cookies
-                    await engine.shutdown()
                     await engine.boot()
-                    logger.info("Manual login succeeded for %s", name)
+                    logger.info("Manual login succeeded for %s, state: %s", name, engine.state.value)
                 else:
+                    # Still restart engine even if login failed
+                    await engine.boot()
                     logger.warning("Manual login failed for %s: %s", name, error_msg)
             except Exception as e:
                 logger.error("Login exception for %s: %s", name, e)
+                try:
+                    await engine.boot()
+                except Exception:
+                    pass
 
         asyncio.create_task(_do_login())
         return {"status": "login_started", "provider": name, "message": "正在打开登录窗口..."}

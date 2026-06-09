@@ -406,6 +406,10 @@ async def _do_recovery(ai_id: str, engine):
             "data": {"ai_id": ai_id, "status": "connecting", "message": "正在打开登录窗口..."}
         })
 
+        # Shutdown engine first to release the profile directory
+        logger.info("Shutting down engine for %s before login", ai_id)
+        await engine.shutdown()
+
         success, error_msg = await engine.login(timeout_s=300)
 
         if success:
@@ -424,6 +428,11 @@ async def _do_recovery(ai_id: str, engine):
             })
             logger.info("Manual login succeeded for %s", ai_id)
         else:
+            # Restart engine even if login failed
+            try:
+                await engine.boot()
+            except Exception:
+                pass
             await ws_manager.broadcast({
                 "type": "auth_status",
                 "data": {"ai_id": ai_id, "status": "failed", "message": f"登录失败: {error_msg}"}
@@ -432,6 +441,11 @@ async def _do_recovery(ai_id: str, engine):
     except Exception as e:
         tb = traceback.format_exc()
         logger.error("LOGIN EXCEPTION for %s: %s\n%s", ai_id, e, tb)
+        # Restart engine even on exception
+        try:
+            await engine.boot()
+        except Exception:
+            pass
         await ws_manager.broadcast({
             "type": "auth_status",
             "data": {"ai_id": ai_id, "status": "failed", "message": f"登录异常: {str(e)}"}
