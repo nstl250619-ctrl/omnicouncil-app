@@ -153,21 +153,36 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
       try {
         const res = await fetch(`${API_BASE}/api/providers/${id}/reauth`, { method: 'POST' });
         if (res.ok) {
-          // Optimistic update — backend recovery will broadcast via WS
-          setPlatforms((prev) =>
-            prev.map((p) =>
-              p.id === id
-                ? { ...p, status: 'connected' as const, circuitBreaker: 'CLOSED' as const, lastHeartbeat: '0s ago' }
-                : p
-            )
-          );
+          const data = await res.json();
+          if (data.status === 'recovery_succeeded') {
+            // Recovery worked — update immediately
+            setPlatforms((prev) =>
+              prev.map((p) =>
+                p.id === id
+                  ? { ...p, status: 'connected' as const, circuitBreaker: 'CLOSED' as const, lastHeartbeat: '0s ago' }
+                  : p
+              )
+            );
+          } else if (data.status === 'login_started') {
+            // Login browser opened — show connecting state, wait for WS event
+            setPlatforms((prev) =>
+              prev.map((p) =>
+                p.id === id
+                  ? { ...p, status: 'idle' as const }
+                  : p
+              )
+            );
+            // Poll health until login completes (max 5 min)
+            const pollId = setInterval(() => fetchHealthRef.current(), 5000);
+            setTimeout(() => clearInterval(pollId), 300000);
+          }
         }
       } catch (err) {
         console.error('reconnect failed:', err);
       } finally {
         setReauthing((prev) => { const next = new Set(prev); next.delete(id); return next; });
       }
-      // Refresh health
+      // Refresh health after a short delay
       setTimeout(() => fetchHealthRef.current(), 2000);
     },
     [reauthing]
