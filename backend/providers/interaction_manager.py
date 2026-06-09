@@ -176,6 +176,7 @@ class PageInteractionManager:
 
     Creates InputFinder, ResponseExtractor, PreFlightChecker from config.
     Provider adapters call manager.find_input(page) etc.
+    Integrates SelectorHealthChecker for runtime selector degradation detection.
     """
 
     def __init__(self, config: PageInteractionConfig | None) -> None:
@@ -190,6 +191,7 @@ class PageInteractionManager:
                 cloudflare_check=True,
             )
 
+        self._config = config
         self.input_finder = InputFinder(config.input_selectors)
         self.response_extractor = ResponseExtractor(
             response_selectors=config.response_selectors,
@@ -202,12 +204,27 @@ class PageInteractionManager:
             input_selectors=config.input_selectors,
         )
 
+        # Selector health tracking
+        from providers.selector_health import SelectorHealthChecker
+        self.selector_health = SelectorHealthChecker(config, failure_threshold=5)
+
     async def find_input(self, page: Any) -> Any:
-        """Find input element on page."""
+        """Find input element on page with health tracking."""
+        ok, working_sel = await self.selector_health.check_input_selector(page)
+        if ok and working_sel:
+            # Use the working selector directly
+            try:
+                el = page.locator(working_sel).first
+                if await el.is_visible(timeout=2000):
+                    return el
+            except Exception:
+                pass
+        # Fallback to InputFinder
         return await self.input_finder.find(page)
 
     async def extract_response(self, page: Any, prompt: str, timeout_ms: int) -> str:
-        """Extract AI response from page."""
+        """Extract AI response from page with health tracking."""
+        ok, working_sel = await self.selector_health.check_response_selector(page)
         return await self.response_extractor.extract(page, prompt, timeout_ms)
 
     async def pre_flight_check(self, page: Any) -> tuple[bool, str]:
