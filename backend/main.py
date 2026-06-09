@@ -50,6 +50,7 @@ from providers.chatgpt.query_adapter import ChatGPTQueryAdapter
 from providers.deepseek.query_adapter import DeepSeekQueryAdapter
 from providers.gemini.query_adapter import GeminiQueryAdapter
 from providers.mimo.query_adapter import MiMoQueryAdapter
+from providers.grok.query_adapter import GrokQueryAdapter
 from providers.qianwen.query_adapter import QianwenQueryAdapter
 from runtime.engine import AIRuntimeEngine
 from runtime.registry import RuntimeRegistry
@@ -234,6 +235,37 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
             requires_chat_mode=True,
         ),
     ),
+    "grok": PlatformConfig(
+        name="grok",
+        home_url="https://grok.com",
+        headless=True,
+        heartbeat_interval_s=60,
+        max_recovery_attempts=3,
+        recovery_cooldown_s=30,
+        session_check_mode="offline_then_online",
+        auth=AuthConfig(
+            method=AuthMethod.COOKIE,
+            cookie=CookieAuthConfig(
+                domains=["x.com", "grok.com"],
+                names=["_twitter_sess", "ct0", "auth_token"],
+                match="contains",
+            ),
+        ),
+        page=PageInteractionConfig(
+            input_selectors=["textarea", "[contenteditable='true']", "[role='textbox']"],
+            response_selectors=["[data-message-author-role='assistant']", "[class*='message']", "[class*='response']"],
+            stop_button_selectors=["button[aria-label='Stop']", "button:has-text('Stop')"],
+            ui_elements=["Grok", "New chat", "Settings", "Copy"],
+            login_url_patterns=["login", "signin", "x.com/oauth"],
+            cloudflare_check=True,
+        ),
+        capabilities=PlatformCapability(
+            supports_streaming=True,
+            supports_image=True,
+            max_input_chars=10000,
+            response_format="markdown",
+        ),
+    ),
 }
 
 
@@ -247,6 +279,7 @@ def _create_query_adapters() -> dict:
         "gemini": GeminiQueryAdapter(),
         "chatgpt": ChatGPTQueryAdapter(),
         "mimo": MiMoQueryAdapter(),
+        "grok": GrokQueryAdapter(),
     }
 
 
