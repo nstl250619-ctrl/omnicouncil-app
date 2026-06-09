@@ -38,6 +38,8 @@ from engine.contracts import (
     AuthConfig,
     AuthMethod,
     CookieAuthConfig,
+    PageInteractionConfig,
+    PlatformCapability,
     PlatformConfig,
 )
 from engine.layers.layer1_ai_access.manager import AIAccessManager
@@ -83,6 +85,20 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
                 match="prefix",
             ),
         ),
+        page=PageInteractionConfig(
+            input_selectors=["textarea", "div[contenteditable='true']"],
+            response_selectors=["[data-role='assistant']", "[class*='response']", "[class*='message-content']"],
+            stop_button_selectors=["button[aria-label='Stop generating']", "button:has-text('Stop')"],
+            ui_elements=["DeepSeek", "New chat", "Settings", "Copy"],
+            login_url_patterns=["signin", "sign-in", "login", "auth0"],
+            cloudflare_check=False,
+        ),
+        capabilities=PlatformCapability(
+            supports_streaming=True,
+            supports_file_upload=True,
+            max_input_chars=10000,
+            response_format="markdown",
+        ),
     ),
     "qianwen": PlatformConfig(
         name="qianwen",
@@ -99,6 +115,20 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
                 names=["sid", "login_", "ALI_", "Session", "cookie2"],
                 match="prefix",
             ),
+        ),
+        page=PageInteractionConfig(
+            input_selectors=["[contenteditable='true'][role='textbox']", "[contenteditable='true']", "textarea"],
+            response_selectors=["[class*='message']", "[class*='response']", "[class*='assistant']"],
+            stop_button_selectors=["button:has-text('停止')", "button[aria-label='Stop']"],
+            ui_elements=["千问", "新对话", "设置", "复制"],
+            login_url_patterns=["login", "signin"],
+            cloudflare_check=False,
+        ),
+        capabilities=PlatformCapability(
+            supports_streaming=True,
+            supports_file_upload=True,
+            max_input_chars=10000,
+            response_format="markdown",
         ),
     ),
     "gemini": PlatformConfig(
@@ -117,11 +147,26 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
                 match="prefix",
             ),
         ),
+        page=PageInteractionConfig(
+            input_selectors=["[contenteditable='true']", "div[contenteditable='true']", "textarea", "[role='textbox']", "main textarea", "gemini-app textarea"],
+            response_selectors=["[data-role='assistant']", "[class*='response']", "[class*='model-response']", "[class*='message-content']"],
+            stop_button_selectors=["button[aria-label='Stop']", "button:has-text('Stop')"],
+            ui_elements=["Gemini", "New chat", "Settings", "Copy"],
+            login_url_patterns=["signin", "sign-in", "login", "accounts.google.com"],
+            cloudflare_check=False,
+        ),
+        capabilities=PlatformCapability(
+            supports_streaming=True,
+            supports_file_upload=True,
+            supports_image=True,
+            max_input_chars=10000,
+            response_format="markdown",
+        ),
     ),
     "chatgpt": PlatformConfig(
         name="chatgpt",
         home_url="https://chatgpt.com",
-        headless=False,  # ChatGPT needs non-headless for Cloudflare
+        headless=False,
         heartbeat_interval_s=60,
         max_recovery_attempts=3,
         recovery_cooldown_s=30,
@@ -142,6 +187,21 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
                 match="prefix",
             ),
         ),
+        page=PageInteractionConfig(
+            input_selectors=["#prompt-textarea", "[contenteditable='true']", "textarea", "div[contenteditable='true']", "[data-orientation='vertical'] textarea", "main textarea", "[role='textbox']"],
+            response_selectors=["[data-message-author-role='assistant']", "[class*='message']", "[class*='response']"],
+            stop_button_selectors=["button[aria-label='Stop generating']", "button:has-text('Stop')", "button:has-text('停止')"],
+            ui_elements=["ChatGPT", "New chat", "Settings", "Copy", "Regenerate"],
+            login_url_patterns=["/auth/login", "auth0.openai.com", "/login"],
+            cloudflare_check=True,
+        ),
+        capabilities=PlatformCapability(
+            supports_streaming=True,
+            supports_file_upload=True,
+            supports_image=True,
+            max_input_chars=10000,
+            response_format="markdown",
+        ),
     ),
     "mimo": PlatformConfig(
         name="mimo",
@@ -158,6 +218,20 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
                 names=["passToken", "userId", "session", "token", "auth"],
                 match="prefix",
             ),
+        ),
+        page=PageInteractionConfig(
+            input_selectors=["[contenteditable='true'][role='textbox']", "[contenteditable='true']", "div[contenteditable='true']", "textarea", "[role='textbox']", "main textarea", "main [contenteditable='true']"],
+            response_selectors=["[data-role='assistant']", "[class*='assistant']", "[class*='response']", "[class*='bot-message']", "[class*='ai-message']"],
+            stop_button_selectors=["button[aria-label='Stop generating']", "button:has-text('Stop')", "button:has-text('停止')"],
+            ui_elements=["MiMo", "New chat", "Settings", "Sign in", "Send", "Copy", "Regenerate", "Help", "History"],
+            login_url_patterns=["login", "signin", "sign-in"],
+            cloudflare_check=False,
+        ),
+        capabilities=PlatformCapability(
+            supports_streaming=True,
+            max_input_chars=10000,
+            response_format="markdown",
+            requires_chat_mode=True,
         ),
     ),
 }

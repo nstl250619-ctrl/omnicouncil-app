@@ -479,7 +479,35 @@ class AuthConfig:
 
 
 # ============================================================
-#  Section 6: Platform configuration
+#  Section 6: Page interaction & capability configuration
+# ============================================================
+
+
+@dataclass(frozen=True)
+class PageInteractionConfig:
+    """Page interaction configuration — config-driven, no code changes."""
+    input_selectors: list[str] = field(default_factory=list)
+    response_selectors: list[str] = field(default_factory=list)
+    stop_button_selectors: list[str] = field(default_factory=list)
+    ui_elements: list[str] = field(default_factory=list)
+    login_url_patterns: list[str] = field(default_factory=list)
+    cloudflare_check: bool = False
+    chat_mode_selector: str | None = None
+
+
+@dataclass(frozen=True)
+class PlatformCapability:
+    """Platform capability declaration."""
+    supports_streaming: bool = True
+    supports_file_upload: bool = False
+    supports_image: bool = False
+    max_input_chars: int = 10000
+    response_format: str = "markdown"
+    requires_chat_mode: bool = False
+
+
+# ============================================================
+#  Section 7: Platform configuration
 # ============================================================
 
 
@@ -504,6 +532,8 @@ class PlatformConfig:
     extra_browser_args: list[str] = field(default_factory=list)  # Additional Chromium launch args
     extra: dict[str, Any] = field(default_factory=dict)          # Arbitrary platform-specific config
     auth: AuthConfig | None = None                  # Authentication configuration
+    page: PageInteractionConfig | None = None       # Page interaction configuration
+    capabilities: PlatformCapability | None = None  # Platform capability declaration
 
 
 # ============================================================
