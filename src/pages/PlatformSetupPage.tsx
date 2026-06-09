@@ -6,7 +6,6 @@ interface PlatformInfo {
   id: string;
   name: string;
   url: string;
-  homeUrl?: string;
   icon: string;
   status: 'connected' | 'disconnected' | 'idle';
   latency: string;
@@ -30,14 +29,13 @@ const AI_ICON_STYLES: Record<string, { gradient: string; short: string }> = {
   ollama:     { gradient: 'linear-gradient(135deg,#a3e635,#65a30d)', short: 'Ol' },
 };
 
-// Default platforms from backend
-const DEFAULT_PLATFORMS: PlatformInfo[] = [
-  { id: 'deepseek', name: 'DeepSeek', url: 'chat.deepseek.com', icon: 'DS', status: 'connected', latency: '1.2s', circuitBreaker: 'CLOSED', lastHeartbeat: '8s ago', profileSize: '24 MB' },
-  { id: 'gemini', name: 'Gemini', url: 'gemini.google.com', icon: 'Ge', status: 'connected', latency: '2.1s', circuitBreaker: 'CLOSED', lastHeartbeat: '15s ago', profileSize: '31 MB' },
-  { id: 'chatgpt', name: 'ChatGPT', url: 'chatgpt.com', icon: 'Gt', status: 'connected', latency: '3.4s', circuitBreaker: 'CLOSED', lastHeartbeat: '5s ago', profileSize: '42 MB' },
-  { id: 'qianwen', name: '千问', url: 'tongyi.aliyun.com', icon: '千', status: 'connected', latency: '0.9s', circuitBreaker: 'CLOSED', lastHeartbeat: '22s ago', profileSize: '18 MB' },
-  { id: 'mimo', name: 'MiMo', url: 'mimo.xiaomi.com', icon: 'Mi', status: 'connected', latency: '1.5s', circuitBreaker: 'CLOSED', lastHeartbeat: '3s ago', profileSize: '15 MB' },
-  { id: 'claude', name: 'Claude', url: 'claude.ai', icon: 'Cl', status: 'disconnected', latency: '--', circuitBreaker: 'OPEN', lastHeartbeat: '12m ago', profileSize: '38 MB' },
+// P0-2: Minimal fallback — only used before backend responds
+const FALLBACK_PLATFORMS: PlatformInfo[] = [
+  { id: 'deepseek', name: 'DeepSeek', url: 'chat.deepseek.com', icon: 'DS', status: 'idle', latency: '--', circuitBreaker: 'CLOSED', lastHeartbeat: '--', profileSize: '--' },
+  { id: 'gemini', name: 'Gemini', url: 'gemini.google.com', icon: 'Ge', status: 'idle', latency: '--', circuitBreaker: 'CLOSED', lastHeartbeat: '--', profileSize: '--' },
+  { id: 'chatgpt', name: 'ChatGPT', url: 'chatgpt.com', icon: 'Gt', status: 'idle', latency: '--', circuitBreaker: 'CLOSED', lastHeartbeat: '--', profileSize: '--' },
+  { id: 'qianwen', name: '千问', url: 'qianwen.com', icon: '千', status: 'idle', latency: '--', circuitBreaker: 'CLOSED', lastHeartbeat: '--', profileSize: '--' },
+  { id: 'mimo', name: 'MiMo', url: 'aistudio.xiaomimimo.com', icon: 'Mi', status: 'idle', latency: '--', circuitBreaker: 'CLOSED', lastHeartbeat: '--', profileSize: '--' },
 ];
 
 /** Map RuntimeHealth state → status light color */
@@ -62,6 +60,26 @@ function healthLabel(state: string): string {
   }
 }
 
+// P1-4: URL format validation
+function normalizeUrl(url: string): string {
+  let u = url.trim();
+  if (!u) return u;
+  if (!u.startsWith('http://') && !u.startsWith('https://')) {
+    u = 'https://' + u;
+  }
+  return u;
+}
+
+function isValidDomain(url: string): boolean {
+  try {
+    const u = url.startsWith('http') ? url : 'https://' + url;
+    new URL(u);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const API_BASE = 'http://127.0.0.1:8765';
 
 interface PlatformSetupPageProps {
@@ -69,18 +87,54 @@ interface PlatformSetupPageProps {
 }
 
 export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProps) {
-  const [platforms, setPlatforms] = useState<PlatformInfo[]>(DEFAULT_PLATFORMS);
+  const [platforms, setPlatforms] = useState<PlatformInfo[]>(FALLBACK_PLATFORMS);
   const [searchQuery, setSearchQuery] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [newUrl, setNewUrl] = useState('');
-  const [newHomeUrl, setNewHomeUrl] = useState('');
   const [reauthing, setReauthing] = useState<Set<string>>(new Set());
+  const [addError, setAddError] = useState('');
 
-  // RuntimeHealth from store (updated by WebSocket events + HTTP polling)
+  // RuntimeHealth from store
   const runtimeHealthMap = useAppStore((s) => s.runtimeHealthMap);
   const setRuntimeHealthMap = useAppStore((s) => s.setRuntimeHealthMap);
+  const addToast = useAppStore((s) => s.addToast);
+
+  // ── P0-2: Fetch platform list from backend ──
+  const fetchPlatformsRef = useRef<() => void>(() => {});
+  fetchPlatformsRef.current = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/runtime/health`);
+      if (!res.ok) return;
+      const data: Record<string, RuntimeHealth> = await res.json();
+      setRuntimeHealthMap(data);
+
+      // Build platform list from backend data
+      const backendPlatforms: PlatformInfo[] = Object.entries(data).map(([id, rh]) => {
+        const iconStyle = AI_ICON_STYLES[id] || { gradient: 'linear-gradient(135deg,#6366f1,#4f46e5)', short: id.slice(0, 2).toUpperCase() };
+        return {
+          id,
+          name: id.charAt(0).toUpperCase() + id.slice(1),
+          url: rh.platform || id,
+          icon: iconStyle.short,
+          status: rh.state === 'healthy' ? 'connected' as const : 'disconnected' as const,
+          latency: '--',
+          circuitBreaker: 'CLOSED' as const,
+          lastHeartbeat: rh.last_heartbeat
+            ? `${Math.floor(Date.now() / 1000 - rh.last_heartbeat)}s ago`
+            : '--',
+          profileSize: '--',
+        };
+      });
+
+      if (backendPlatforms.length > 0) {
+        setPlatforms(backendPlatforms);
+      }
+    } catch {
+      // Backend not running — keep fallback
+    }
+  };
 
   // ── Poll /api/runtime/health every 30s ──
   const fetchHealthRef = useRef<() => void>(() => {});
@@ -90,18 +144,19 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
       if (!res.ok) return;
       const data: Record<string, RuntimeHealth> = await res.json();
       setRuntimeHealthMap(data);
-    } catch (e) {
-      // Silent — backend may not be running
+    } catch {
+      // Silent
     }
   };
 
   useEffect(() => {
+    fetchPlatformsRef.current();
     fetchHealthRef.current();
     const interval = setInterval(() => fetchHealthRef.current(), 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Merge health data into PlatformInfo status for display
+  // Merge health data into PlatformInfo
   const mergedPlatforms = useMemo(() => {
     return platforms.map((p) => {
       const rh = runtimeHealthMap[p.id];
@@ -155,7 +210,6 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
         if (res.ok) {
           const data = await res.json();
           if (data.status === 'recovery_succeeded') {
-            // Recovery worked — update immediately
             setPlatforms((prev) =>
               prev.map((p) =>
                 p.id === id
@@ -163,8 +217,8 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
                   : p
               )
             );
+            addToast(`${id} 恢复成功`, 'success');
           } else if (data.status === 'login_started') {
-            // Login browser opened — show connecting state, wait for WS event
             setPlatforms((prev) =>
               prev.map((p) =>
                 p.id === id
@@ -172,65 +226,70 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
                   : p
               )
             );
-            // Poll health until login completes (max 5 min)
+            addToast(`正在打开 ${id} 登录窗口...`, 'info');
             const pollId = setInterval(() => fetchHealthRef.current(), 5000);
             setTimeout(() => clearInterval(pollId), 300000);
           }
+        } else {
+          // P1-6: Reconnect failure feedback
+          addToast(`${id} 恢复失败 (HTTP ${res.status})`, 'error');
         }
       } catch (err) {
+        // P1-6: Reconnect failure feedback
+        addToast(`${id} 恢复失败: 网络错误`, 'error');
         console.error('reconnect failed:', err);
       } finally {
         setReauthing((prev) => { const next = new Set(prev); next.delete(id); return next; });
       }
-      // Refresh health after a short delay
       setTimeout(() => fetchHealthRef.current(), 2000);
     },
-    [reauthing]
+    [reauthing, addToast]
   );
 
-  const resetPlatform = useCallback((id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    // Reset = reauth + cleanup
-    reconnectPlatform(id);
-  }, [reconnectPlatform]);
-
+  // P0-3: Batch delete calls backend API
   const deletePlatform = useCallback(async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const p = mergedPlatforms.find((x) => x.id === id);
     if (!p || !window.confirm(`确认删除 ${p.name}？`)) return;
     try {
-      const res = await fetch(`${API_BASE}/api/providers/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setPlatforms((prev) => prev.filter((x) => x.id !== id));
-        setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
-      } else {
-        console.warn('DELETE /api/providers returned', res.status, '- falling back to local delete');
-        setPlatforms((prev) => prev.filter((x) => x.id !== id));
-        setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
-      }
+      await fetch(`${API_BASE}/api/providers/${id}`, { method: 'DELETE' });
     } catch {
-      // Backend not available — local delete only
-      setPlatforms((prev) => prev.filter((x) => x.id !== id));
-      setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      // Backend not available
     }
+    // Always update local state
+    setPlatforms((prev) => prev.filter((x) => x.id !== id));
+    setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
   }, [mergedPlatforms]);
 
-  const showWebPage = useCallback((id: string, e?: React.MouseEvent) => {
+  // P1-7: Rename "显示网页" to "登录" — calls backend login
+  const openLogin = useCallback((id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    // Open in built-in Chromium via backend login API (not window.open which uses Edge)
     reconnectPlatform(id);
   }, [reconnectPlatform]);
 
+  // P1-4 + P1-5: Add platform with validation
   const addPlatform = useCallback(async () => {
-    if (!newName.trim() || !newUrl.trim()) return;
+    setAddError('');
+    if (!newName.trim() || !newUrl.trim()) {
+      setAddError('名称和地址不能为空');
+      return;
+    }
+    const normalized = normalizeUrl(newUrl);
+    if (!isValidDomain(normalized)) {
+      setAddError('请输入有效的域名或 URL');
+      return;
+    }
     const id = newName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-    if (mergedPlatforms.find((p) => p.id === id)) return;
+    if (mergedPlatforms.find((p) => p.id === id)) {
+      setAddError(`平台 "${id}" 已存在`);
+      return;
+    }
+    const iconStyle = AI_ICON_STYLES[id] || { short: newName.slice(0, 2).toUpperCase() };
     const newPlatform: PlatformInfo = {
       id,
       name: newName,
       url: newUrl,
-      homeUrl: newHomeUrl,
-      icon: newName.slice(0, 2).toUpperCase(),
+      icon: iconStyle.short,
       status: 'idle',
       latency: '--',
       circuitBreaker: 'CLOSED',
@@ -241,34 +300,41 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
     setShowAddModal(false);
     setNewName('');
     setNewUrl('');
-    setNewHomeUrl('');
+    setAddError('');
 
-    // Also notify backend
+    // Notify backend
     try {
       await fetch(`${API_BASE}/api/providers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName, url: newUrl, home_url: newHomeUrl }),
+        body: JSON.stringify({ name: newName, url: normalized }),
       });
     } catch {
-      // Backend may not be running — platform is added locally
+      // Backend may not be running
     }
-  }, [newName, newUrl, newHomeUrl, mergedPlatforms]);
+  }, [newName, newUrl, mergedPlatforms]);
 
+  // P2-9: Single "恢复" button (merged reconnect + reset)
   const reconnectSelected = useCallback(() => {
     if (!selected.size) return;
     selected.forEach((id) => reconnectPlatform(id));
   }, [selected, reconnectPlatform]);
 
-  const resetSelected = useCallback(() => {
-    if (!selected.size) return;
-    selected.forEach((id) => resetPlatform(id));
-  }, [selected, resetPlatform]);
-
-  const deleteSelected = useCallback(() => {
+  // P0-3: Batch delete calls backend API
+  const deleteSelected = useCallback(async () => {
     if (!selected.size) return;
     const names = mergedPlatforms.filter((p) => selected.has(p.id)).map((p) => p.name).join(', ');
     if (!window.confirm(`确认删除 ${selected.size} 个平台？\n${names}`)) return;
+
+    // Call backend DELETE for each
+    for (const id of selected) {
+      try {
+        await fetch(`${API_BASE}/api/providers/${id}`, { method: 'DELETE' });
+      } catch {
+        // Backend may not be running
+      }
+    }
+
     setPlatforms((prev) => prev.filter((p) => !selected.has(p.id)));
     setSelected(new Set());
   }, [selected, mergedPlatforms]);
@@ -297,93 +363,38 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
         >
           <button
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 6,
+              width: 38, height: 38, borderRadius: 6,
               border: '1px solid rgba(212,168,83,0.25)',
-              background: 'var(--accent-glow)',
-              color: 'var(--accent)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 16,
+              background: 'var(--accent-glow)', color: 'var(--accent)',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
             }}
             title="平台管理"
-          >
-            🖥
-          </button>
+          >🖥</button>
           <button
             onClick={onNavigateToConsole}
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 6,
-              border: '1px solid transparent',
-              background: 'transparent',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 16,
-              position: 'relative',
+              width: 38, height: 38, borderRadius: 6,
+              border: '1px solid transparent', background: 'transparent',
+              color: 'var(--text-muted)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, position: 'relative',
             }}
             title="控制台"
           >
             ▶
-            <span
-              style={{
-                position: 'absolute',
-                top: 4,
-                right: 4,
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: 'var(--green)',
-                border: '2px solid var(--bg-surface)',
-              }}
-            />
+            <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', border: '2px solid var(--bg-surface)' }} />
           </button>
           <div style={{ width: 24, height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => { setShowAddModal(true); setAddError(''); }}
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 6,
-              border: '1px solid transparent',
-              background: 'transparent',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 16,
+              width: 38, height: 38, borderRadius: 6,
+              border: '1px solid transparent', background: 'transparent',
+              color: 'var(--text-muted)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
             }}
             title="添加平台"
-          >
-            ＋
-          </button>
+          >＋</button>
           <div style={{ flex: 1 }} />
-          <button
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 6,
-              border: '1px solid transparent',
-              background: 'transparent',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 16,
-            }}
-            title="设置"
-          >
-            ⚙
-          </button>
         </div>
 
         {/* Main area */}
@@ -391,149 +402,34 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
           {/* Top bar */}
           <div
             style={{
-              height: 52,
-              background: 'var(--bg-surface)',
+              height: 52, background: 'var(--bg-surface)',
               borderBottom: '1px solid var(--border-subtle)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0 24px',
-              flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '0 24px', flexShrink: 0,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div
-                style={{
-                  fontFamily: "'Syne', sans-serif",
-                  fontWeight: 700,
-                  fontSize: 16,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 AI 平台管理
-                <span
-                  style={{
-                    fontFamily: "'DM Mono', monospace",
-                    fontSize: 11,
-                    background: 'var(--accent-glow)',
-                    color: 'var(--accent)',
-                    padding: '2px 8px',
-                    borderRadius: 10,
-                    fontWeight: 500,
-                  }}
-                >
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, background: 'var(--accent-glow)', color: 'var(--accent)', padding: '2px 8px', borderRadius: 10, fontWeight: 500 }}>
                   {mergedPlatforms.length}
                 </span>
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  background: 'var(--bg-inset)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 6,
-                  padding: '6px 12px',
-                  width: 220,
-                }}
-              >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-inset)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '6px 12px', width: 220 }}>
                 <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>⌕</span>
                 <input
                   type="text"
                   placeholder="搜索平台..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    outline: 'none',
-                    fontFamily: "'DM Mono', monospace",
-                    fontSize: 12,
-                    color: 'var(--text-primary)',
-                    width: '100%',
-                  }}
+                  style={{ background: 'none', border: 'none', outline: 'none', fontFamily: "'DM Mono', monospace", fontSize: 12, color: 'var(--text-primary)', width: '100%' }}
                 />
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button
-                onClick={reconnectSelected}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 6,
-                  fontFamily: "'Syne', sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                ⟳ 重连选中
-              </button>
-              <button
-                onClick={resetSelected}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 6,
-                  fontFamily: "'Syne', sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                ↺ 重置选中
-              </button>
-              <button
-                onClick={deleteSelected}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 6,
-                  fontFamily: "'Syne', sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  border: '1px solid rgba(239,68,68,0.3)',
-                  background: 'transparent',
-                  color: 'var(--red)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                ✕ 删除选中
-              </button>
-              <button
-                onClick={() => setShowAddModal(true)}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 6,
-                  fontFamily: "'Syne', sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  border: 'none',
-                  background: 'var(--accent)',
-                  color: 'var(--bg-deep)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                ＋ 添加平台
-              </button>
+              <button onClick={reconnectSelected} style={topBtnStyle}>⟳ 恢复选中</button>
+              <button onClick={deleteSelected} style={{ ...topBtnStyle, border: '1px solid rgba(239,68,68,0.3)', color: 'var(--red)' }}>✕ 删除选中</button>
+              <button onClick={() => { setShowAddModal(true); setAddError(''); }} style={{ ...topBtnStyle, border: 'none', background: 'var(--accent)', color: 'var(--bg-deep)' }}>＋ 添加平台</button>
             </div>
           </div>
 
@@ -546,14 +442,9 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
                     <div
                       onClick={toggleAll}
                       style={{
-                        width: 16,
-                        height: 16,
-                        borderRadius: 3,
+                        width: 16, height: 16, borderRadius: 3,
                         border: `1.5px solid ${selected.size === platforms.length && platforms.length > 0 ? 'var(--accent)' : 'var(--border)'}`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
                         background: selected.size === platforms.length && platforms.length > 0 ? 'var(--accent)' : 'transparent',
                       }}
                     >
@@ -591,14 +482,9 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
                         <div
                           onClick={(e) => toggleSelect(p.id, e)}
                           style={{
-                            width: 16,
-                            height: 16,
-                            borderRadius: 3,
+                            width: 16, height: 16, borderRadius: 3,
                             border: `1.5px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
                             background: isSelected ? 'var(--accent)' : 'transparent',
                           }}
                         >
@@ -609,22 +495,12 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <div
                             style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 6,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontFamily: "'Syne', sans-serif",
-                              fontWeight: 700,
-                              fontSize: 11,
-                              color: '#fff',
-                              background: iconStyle.gradient,
-                              flexShrink: 0,
+                              width: 32, height: 32, borderRadius: 6,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 11, color: '#fff',
+                              background: iconStyle.gradient, flexShrink: 0,
                             }}
-                          >
-                            {iconStyle.short}
-                          </div>
+                          >{iconStyle.short}</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                             <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: 13 }}>{p.name}</span>
                             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: 'var(--text-muted)' }}>{p.url}</span>
@@ -643,13 +519,9 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
                           return (
                             <span
                               style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 5,
-                                fontFamily: "'DM Mono', monospace",
-                                fontSize: 11,
-                                padding: '3px 10px',
-                                borderRadius: 12,
+                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                fontFamily: "'DM Mono', monospace", fontSize: 11,
+                                padding: '3px 10px', borderRadius: 12,
                                 ...(isGreen
                                   ? { background: 'var(--green-glow)', color: 'var(--green)', border: '1px solid rgba(62,207,142,0.2)' }
                                   : isRed
@@ -659,51 +531,23 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
                                   : { background: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }),
                               }}
                             >
-                              <span
-                                style={{
-                                  width: 6,
-                                  height: 6,
-                                  borderRadius: '50%',
-                                  background: color,
-                                  boxShadow: isGreen ? '0 0 6px rgba(62,207,142,0.5)' : isRed ? '0 0 6px rgba(239,68,68,0.5)' : 'none',
-                                }}
-                              />
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, boxShadow: isGreen ? '0 0 6px rgba(62,207,142,0.5)' : isRed ? '0 0 6px rgba(239,68,68,0.5)' : 'none' }} />
                               {label}
                             </span>
                           );
                         })()}
                       </td>
                       <td style={tdStyle}>
-                        <span
-                          style={{
-                            fontFamily: "'DM Mono', monospace",
-                            fontSize: 11,
-                            color: p.latency === '--' ? 'var(--red)' : parseFloat(p.latency) > 3 ? 'var(--amber)' : 'var(--text-secondary)',
-                          }}
-                        >
-                          {p.latency}
-                        </span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: p.latency === '--' ? 'var(--text-muted)' : parseFloat(p.latency) > 3 ? 'var(--amber)' : 'var(--text-secondary)' }}>{p.latency}</span>
                       </td>
                       <td style={tdStyle}>
-                        <span
-                          style={{
-                            fontFamily: "'DM Mono', monospace",
-                            fontSize: 11,
-                            color: p.circuitBreaker === 'OPEN' ? 'var(--red)' : 'var(--text-secondary)',
-                          }}
-                        >
-                          {p.circuitBreaker}
-                        </span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: p.circuitBreaker === 'OPEN' ? 'var(--red)' : 'var(--text-secondary)' }}>{p.circuitBreaker}</span>
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: 'var(--text-secondary)' }}>
-                          {p.lastHeartbeat}
-                        </span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: 'var(--text-secondary)' }}>{p.lastHeartbeat}</span>
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: 'var(--text-secondary)' }}>
-                          {p.profileSize}
-                        </span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: 'var(--text-secondary)' }}>{p.profileSize}</span>
                       </td>
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', gap: 4 }}>
@@ -716,19 +560,13 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
                                 {needsRecovery && (
                                   <button
                                     onClick={(e) => reconnectPlatform(p.id, e)}
-                                    style={{
-                                      ...rowBtnStyle,
-                                      color: isBusy ? 'var(--text-muted)' : 'var(--amber)',
-                                      borderColor: isBusy ? 'var(--border-subtle)' : 'rgba(245,158,11,0.3)',
-                                      cursor: isBusy ? 'default' : 'pointer',
-                                    }}
+                                    style={{ ...rowBtnStyle, color: isBusy ? 'var(--text-muted)' : 'var(--amber)', borderColor: isBusy ? 'var(--border-subtle)' : 'rgba(245,158,11,0.3)', cursor: isBusy ? 'default' : 'pointer' }}
                                     title={isBusy ? '恢复中...' : '恢复'}
                                     disabled={isBusy}
-                                  >
-                                    {isBusy ? '⋯' : '⟳'}
-                                  </button>
+                                  >{isBusy ? '⋯' : '⟳'}</button>
                                 )}
-                                <button onClick={(e) => showWebPage(p.id, e)} style={rowBtnStyle} title="显示网页">⧉</button>
+                                {/* P1-7: "登录" button — opens built-in Chromium for login */}
+                                <button onClick={(e) => openLogin(p.id, e)} style={rowBtnStyle} title="登录">🔐</button>
                                 <button onClick={(e) => deletePlatform(p.id, e)} style={{ ...rowBtnStyle, color: 'var(--red)' }} title="删除">✕</button>
                               </>
                             );
@@ -745,35 +583,20 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
           {/* Footer */}
           <div
             style={{
-              height: 32,
-              background: 'var(--bg-surface)',
+              height: 32, background: 'var(--bg-surface)',
               borderTop: '1px solid var(--border-subtle)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '0 20px',
-              fontFamily: "'DM Mono', monospace",
-              fontSize: 10,
-              color: 'var(--text-muted)',
-              flexShrink: 0,
+              fontFamily: "'DM Mono', monospace", fontSize: 10, color: 'var(--text-muted)', flexShrink: 0,
             }}
           >
-            <span>
-              已连接: <span style={{ color: 'var(--green)' }}>{connectedCount}</span>
-            </span>
+            <span>已连接: <span style={{ color: 'var(--green)' }}>{connectedCount}</span></span>
             <span style={{ margin: '0 10px', opacity: 0.3 }}>|</span>
-            <span>
-              未连接: <span style={{ color: 'var(--red)' }}>{disconnectedCount}</span>
-            </span>
+            <span>未连接: <span style={{ color: 'var(--red)' }}>{disconnectedCount}</span></span>
             <span style={{ margin: '0 10px', opacity: 0.3 }}>|</span>
             <span>总计: {mergedPlatforms.length} 个平台</span>
             <span style={{ margin: '0 10px', opacity: 0.3 }}>|</span>
-            <span
-              onClick={onNavigateToConsole}
-              style={{ color: 'var(--accent)', cursor: 'pointer' }}
-            >
-              ▶ 进入控制台 →
-            </span>
+            <span onClick={onNavigateToConsole} style={{ color: 'var(--accent)', cursor: 'pointer' }}>▶ 进入控制台 →</span>
           </div>
         </div>
       </div>
@@ -781,127 +604,34 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
       {/* Add Modal */}
       {showAddModal && (
         <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.6)',
-            zIndex: 100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backdropFilter: 'blur(4px)',
-          }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}
           onClick={() => setShowAddModal(false)}
         >
           <div
-            style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 16,
-              width: 440,
-              animation: 'modalIn 0.3s ease',
-            }}
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, width: 440, animation: 'modalIn 0.3s ease' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                padding: '20px 24px 16px',
-                borderBottom: '1px solid var(--border-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
+            <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16 }}>添加 AI 平台</div>
-              <button
-                onClick={() => setShowAddModal(false)}
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 6,
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  fontSize: 16,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                ✕
-              </button>
+              <button onClick={() => setShowAddModal(false)} style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
             <div style={{ padding: '20px 24px' }}>
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>平台名称</label>
-                <input
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="例如: ChatGPT"
-                  style={inputStyle}
-                />
+                <input value={newName} onChange={(e) => { setNewName(e.target.value); setAddError(''); }} placeholder="例如: ChatGPT" style={inputStyle} />
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle}>访问地址</label>
-                <input
-                  value={newUrl}
-                  onChange={(e) => setNewUrl(e.target.value)}
-                  placeholder="例如: chatgpt.com"
-                  style={inputStyle}
-                />
+                <input value={newUrl} onChange={(e) => { setNewUrl(e.target.value); setAddError(''); }} placeholder="例如: chatgpt.com" style={inputStyle} />
               </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle}>主页 URL</label>
-                <input
-                  value={newHomeUrl}
-                  onChange={(e) => setNewHomeUrl(e.target.value)}
-                  placeholder="例如: https://chatgpt.com/"
-                  style={inputStyle}
-                />
-              </div>
+              {/* P1-5: Duplicate ID / validation error */}
+              {addError && (
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: 'var(--red)', marginBottom: 12 }}>⚠ {addError}</div>
+              )}
             </div>
-            <div
-              style={{
-                padding: '16px 24px 20px',
-                borderTop: '1px solid var(--border-subtle)',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: 8,
-              }}
-            >
-              <button
-                onClick={() => setShowAddModal(false)}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 6,
-                  fontFamily: "'Syne', sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: 'var(--text-secondary)',
-                }}
-              >
-                取消
-              </button>
-              <button
-                onClick={addPlatform}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 6,
-                  fontFamily: "'Syne', sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  border: 'none',
-                  background: 'var(--accent)',
-                  color: 'var(--bg-deep)',
-                }}
-              >
-                确认添加
-              </button>
+            <div style={{ padding: '16px 24px 20px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setShowAddModal(false)} style={modalBtnStyle}>取消</button>
+              <button onClick={addPlatform} style={{ ...modalBtnStyle, border: 'none', background: 'var(--accent)', color: 'var(--bg-deep)' }}>确认添加</button>
             </div>
           </div>
         </div>
@@ -912,58 +642,44 @@ export function PlatformSetupPage({ onNavigateToConsole }: PlatformSetupPageProp
 
 // Shared styles
 const thStyle: React.CSSProperties = {
-  fontFamily: "'DM Mono', monospace",
-  fontSize: 10,
-  fontWeight: 500,
-  color: 'var(--text-muted)',
-  textTransform: 'uppercase',
-  letterSpacing: 0.08,
-  textAlign: 'left',
-  padding: '10px 14px',
+  fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 500,
+  color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.08,
+  textAlign: 'left', padding: '10px 14px',
   borderBottom: '1px solid var(--border-subtle)',
-  position: 'sticky',
-  top: 0,
-  background: 'var(--bg-deep)',
-  zIndex: 2,
+  position: 'sticky', top: 0, background: 'var(--bg-deep)', zIndex: 2,
 };
 
-const tdStyle: React.CSSProperties = {
-  padding: '12px 14px',
-  verticalAlign: 'middle',
-};
+const tdStyle: React.CSSProperties = { padding: '12px 14px', verticalAlign: 'middle' };
 
 const rowBtnStyle: React.CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: 6,
-  border: '1px solid var(--border-subtle)',
-  background: 'transparent',
-  color: 'var(--text-muted)',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 13,
+  width: 28, height: 28, borderRadius: 6,
+  border: '1px solid var(--border-subtle)', background: 'transparent',
+  color: 'var(--text-muted)', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13,
+};
+
+const topBtnStyle: React.CSSProperties = {
+  padding: '7px 14px', borderRadius: 6,
+  fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: 12,
+  cursor: 'pointer', border: '1px solid var(--border)',
+  background: 'transparent', color: 'var(--text-secondary)',
+  display: 'flex', alignItems: 'center', gap: 6,
 };
 
 const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontFamily: "'DM Mono', monospace",
-  fontSize: 11,
-  color: 'var(--text-muted)',
-  textTransform: 'uppercase',
-  letterSpacing: 0.06,
-  marginBottom: 6,
+  display: 'block', fontFamily: "'DM Mono', monospace", fontSize: 11,
+  color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.06, marginBottom: 6,
 };
 
 const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 14px',
-  background: 'var(--bg-inset)',
-  border: '1px solid var(--border)',
-  borderRadius: 6,
-  fontFamily: "'DM Mono', monospace",
-  fontSize: 13,
-  color: 'var(--text-primary)',
-  outline: 'none',
+  width: '100%', padding: '10px 14px',
+  background: 'var(--bg-inset)', border: '1px solid var(--border)', borderRadius: 6,
+  fontFamily: "'DM Mono', monospace", fontSize: 13, color: 'var(--text-primary)', outline: 'none',
+};
+
+const modalBtnStyle: React.CSSProperties = {
+  padding: '7px 14px', borderRadius: 6,
+  fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: 12,
+  cursor: 'pointer', border: '1px solid var(--border)',
+  background: 'transparent', color: 'var(--text-secondary)',
 };
