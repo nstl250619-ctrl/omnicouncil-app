@@ -34,7 +34,12 @@ from typing import TYPE_CHECKING
 
 from api.events import register_events
 from api.routes import register_routes
-from engine.contracts import PlatformConfig
+from engine.contracts import (
+    AuthConfig,
+    AuthMethod,
+    CookieAuthConfig,
+    PlatformConfig,
+)
 from engine.layers.layer1_ai_access.manager import AIAccessManager
 from engine.layers.layer2_scheduler.scheduler_center import SchedulerCenter
 from engine.layers.layer3_collector.result_collector import ResultCollector
@@ -70,6 +75,14 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
         max_recovery_attempts=3,
         recovery_cooldown_s=30,
         session_check_mode="offline_then_online",
+        auth=AuthConfig(
+            method=AuthMethod.COOKIE,
+            cookie=CookieAuthConfig(
+                domains=["chat.deepseek.com"],
+                names=["sessionid", "token", "auth"],
+                match="prefix",
+            ),
+        ),
     ),
     "qianwen": PlatformConfig(
         name="qianwen",
@@ -79,6 +92,14 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
         max_recovery_attempts=3,
         recovery_cooldown_s=30,
         session_check_mode="offline_then_online",
+        auth=AuthConfig(
+            method=AuthMethod.COOKIE,
+            cookie=CookieAuthConfig(
+                domains=["qianwen.com"],
+                names=["sid", "login_", "ALI_", "Session", "cookie2"],
+                match="prefix",
+            ),
+        ),
     ),
     "gemini": PlatformConfig(
         name="gemini",
@@ -88,6 +109,14 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
         max_recovery_attempts=3,
         recovery_cooldown_s=30,
         session_check_mode="offline_then_online",
+        auth=AuthConfig(
+            method=AuthMethod.COOKIE,
+            cookie=CookieAuthConfig(
+                domains=["google.com"],
+                names=["SAPISID", "SSID", "__Secure-", "OSID"],
+                match="prefix",
+            ),
+        ),
     ),
     "chatgpt": PlatformConfig(
         name="chatgpt",
@@ -98,18 +127,21 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
         recovery_cooldown_s=30,
         session_check_mode="offline_then_online",
         extra_browser_args=[
-            # 1) 把窗口丢到不存在的屏幕坐标
             "--window-position=-32000,-32000",
-            # 2) 窗口尺寸压到 1x1
             "--window-size=1,1",
-            # 3) 应用模式：无地址栏/标签栏/菜单栏，任务栏无图标
             "--app=https://chatgpt.com",
-            # 4) 禁止启动时自动创建窗口
             "--no-startup-window",
-            # 5) 关掉通知弹窗和自动化信息条
             "--disable-notifications",
             "--disable-infobars",
         ],
+        auth=AuthConfig(
+            method=AuthMethod.COOKIE,
+            cookie=CookieAuthConfig(
+                domains=["chatgpt.com"],
+                names=["__Secure-next-auth.session-token", "__Host-next-auth.csrf-token"],
+                match="prefix",
+            ),
+        ),
     ),
     "mimo": PlatformConfig(
         name="mimo",
@@ -119,6 +151,14 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
         max_recovery_attempts=3,
         recovery_cooldown_s=30,
         session_check_mode="offline_then_online",
+        auth=AuthConfig(
+            method=AuthMethod.COOKIE,
+            cookie=CookieAuthConfig(
+                domains=["xiaomi.com", "account.xiaomi.com"],
+                names=["passToken", "userId", "session", "token", "auth"],
+                match="prefix",
+            ),
+        ),
     ),
 }
 

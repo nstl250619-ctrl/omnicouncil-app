@@ -40,19 +40,6 @@ from shared.types import SessionState
 
 logger = logging.getLogger(__name__)
 
-# Per-provider cookie domain + auth cookie name patterns.
-# Mirrors ``EmbeddedEngine._has_valid_session`` but is path-based.
-_PROVIDER_COOKIE_CONFIG: dict[str, tuple[str, list[str]]] = {
-    "deepseek": ("chat.deepseek.com", ["sessionid", "token", "auth"]),
-    "qianwen":  ("qianwen.com",       ["sid", "login_", "ALI_", "Session", "cookie2"]),
-    "gemini":   ("google.com",        ["SAPISID", "SSID", "__Secure-", "OSID"]),
-    "chatgpt":  ("chatgpt.com",       [
-        "__Secure-next-auth.session-token",
-        "__Host-next-auth.csrf-token",
-    ]),
-    "mimo":     ("xiaomimimo.com",    ["session", "token", "auth"]),
-}
-
 _DEFAULT_AUTH_DIR = Path.home() / ".omnicouncil" / "auth"
 _MAX_BACKUPS = 3
 
@@ -275,53 +262,9 @@ class ProfileManager(ProfileManagerABC):
     def _check_cookies(self, platform: str, profile_path: Path) -> SessionState:
         """Offline Cookie SQLite probe.
 
-        Mirrors ``EmbeddedEngine._has_valid_session`` but is a pure
-        function of *profile_path* — no engine dependency.
+        Legacy method — AuthManager handles all cookie checking now.
+        Returns UNKNOWN as fallback.
         """
-        cookie_paths = [
-            profile_path / "Default" / "Cookies",
-            profile_path / "Default" / "Network" / "Cookies",
-        ]
-
-        domain, auth_names = _PROVIDER_COOKIE_CONFIG.get(
-            platform, (platform, ["session", "token", "auth"])
-        )
-
-        for cookie_file in cookie_paths:
-            if not cookie_file.exists() or cookie_file.stat().st_size == 0:
-                continue
-            try:
-                import sqlite3
-
-                conn = sqlite3.connect(str(cookie_file))
-                cursor = conn.cursor()
-                now_chrome = int((time.time() + 11644473600) * 1_000_000)
-
-                name_conditions = " OR ".join("name LIKE ?" for _ in auth_names)
-                params: list[str | int] = [f"%{domain}%"]
-                params.extend(f"{p}%" for p in auth_names)
-                params.append(now_chrome)
-
-                cursor.execute(
-                    f"SELECT COUNT(*) FROM cookies "
-                    f"WHERE host_key LIKE ? AND is_persistent = 1 "
-                    f"AND ({name_conditions}) "
-                    f"AND (has_expires = 0 OR expires_utc > ?)",
-                    params,
-                )
-                count = cursor.fetchone()[0]
-                conn.close()
-
-                if count > 0:
-                    return SessionState.AUTHENTICATED
-                return SessionState.AUTH_EXPIRED
-
-            except Exception as exc:
-                logger.debug("%s: cookie check error: %s", platform, exc)
-                # Fallback: size > 1KB is probably a real cookie store
-                if cookie_file.stat().st_size > 1024:
-                    return SessionState.AUTHENTICATED
-
         return SessionState.UNKNOWN
 
     # ── Listing / inspection ───────────────────────────────

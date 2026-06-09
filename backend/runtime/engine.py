@@ -114,12 +114,17 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
             auth_dir=config.profile_dir and Path(config.profile_dir).parent or None,
         )
 
-        # Session validator
+        # Auth manager (from config.auth)
+        from auth.auth_manager import AuthManager
+        self._auth_manager = AuthManager(config.auth)
+
+        # Session validator (with AuthManager injection)
         self._session_validator = session_validator or SessionValidator(
             profile_dir=self._profile_manager.get_profile_path(self._platform).parent,
             platform=self._platform,
             mode=config.session_check_mode,
             home_url=config.home_url,
+            auth_manager=self._auth_manager,
         )
 
         # Health monitor

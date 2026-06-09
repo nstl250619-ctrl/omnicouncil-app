@@ -432,7 +432,54 @@ class FileUploadError(QueryEngineError):
 
 
 # ============================================================
-#  Section 5: Platform configuration
+#  Section 5: Authentication configuration
+# ============================================================
+
+
+class AuthMethod(StrEnum):
+    """认证方式枚举。"""
+    COOKIE = "cookie"
+    OAUTH2 = "oauth2"
+    API_KEY = "api_key"
+    NONE = "none"
+
+
+@dataclass(frozen=True)
+class CookieAuthConfig:
+    """Cookie 认证配置。"""
+    domains: list[str]           # ["chat.deepseek.com"]
+    names: list[str]             # ["sessionid", "token", "auth"]
+    match: str = "prefix"        # "prefix" | "contains" | "exact"
+
+
+@dataclass(frozen=True)
+class OAuthAuthConfig:
+    """OAuth2 认证配置。"""
+    token_url: str
+    client_id: str = ""
+    redirect_uri: str = ""
+    scopes: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ApiKeyAuthConfig:
+    """API Key 认证配置。"""
+    header_name: str = "Authorization"
+    header_prefix: str = "Bearer"
+    env_var: str = ""
+
+
+@dataclass(frozen=True)
+class AuthConfig:
+    """统一认证配置。"""
+    method: AuthMethod
+    cookie: CookieAuthConfig | None = None
+    oauth: OAuthAuthConfig | None = None
+    api_key: ApiKeyAuthConfig | None = None
+
+
+# ============================================================
+#  Section 6: Platform configuration
 # ============================================================
 
 
@@ -456,6 +503,7 @@ class PlatformConfig:
     session_check_mode: str = "offline_then_online" # "offline" | "online" | "offline_then_online"
     extra_browser_args: list[str] = field(default_factory=list)  # Additional Chromium launch args
     extra: dict[str, Any] = field(default_factory=dict)          # Arbitrary platform-specific config
+    auth: AuthConfig | None = None                  # Authentication configuration
 
 
 # ============================================================

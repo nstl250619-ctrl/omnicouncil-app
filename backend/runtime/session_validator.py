@@ -31,18 +31,6 @@ from shared.types import SessionState
 
 logger = logging.getLogger(__name__)
 
-# Same config as ProfileManager — shared constant.
-_PROVIDER_COOKIE_CONFIG: dict[str, tuple[str, list[str]]] = {
-    "deepseek": ("chat.deepseek.com", ["sessionid", "token", "auth"]),
-    "qianwen":  ("qianwen.com",       ["sid", "login_", "ALI_", "Session", "cookie2"]),
-    "gemini":   ("google.com",        ["SAPISID", "SSID", "__Secure-", "OSID"]),
-    "chatgpt":  ("chatgpt.com",       [
-        "__Secure-next-auth.session-token",
-        "__Host-next-auth.csrf-token",
-    ]),
-    "mimo":     ("xiaomimimo.com",    ["session", "token", "auth"]),
-}
-
 # URL patterns that indicate a login page.
 _LOGIN_URL_PATTERNS = [
     "/login", "/signin", "/sign-in", "/sign_in", "/auth/login", "/auth0",
@@ -176,11 +164,13 @@ class SessionValidator:
         platform: str,
         mode: str = "offline_then_online",
         home_url: str = "",
+        auth_manager: Any | None = None,
     ) -> None:
         self._profile_dir = Path(profile_dir)
         self._platform = platform
         self._mode = mode
         self._home_url = home_url
+        self._auth_manager = auth_manager
 
         # Select online check strategy
         strategy_cls = _ONLINE_STRATEGIES.get(platform, DefaultOnlineCheck)
@@ -228,52 +218,15 @@ class SessionValidator:
     # ── Offline check (Cookie SQLite) ─────────────────────
 
     async def _offline_check(self) -> SessionState:
-        """Cookie SQLite probe — fast, no browser needed."""
-        return await asyncio.to_thread(self._offline_check_sync)
+        """Cookie SQLite probe — fast, no browser needed.
 
-    def _offline_check_sync(self) -> SessionState:
-        profile_path = self._profile_dir / f"{self._platform}_profile"
-        cookie_paths = [
-            profile_path / "Default" / "Cookies",
-            profile_path / "Default" / "Network" / "Cookies",
-        ]
+        Uses AuthManager if available, otherwise falls back to legacy logic.
+        """
+        if self._auth_manager is not None:
+            profile_path = self._profile_dir / f"{self._platform}_profile"
+            return await self._auth_manager.detect(str(profile_path), self._platform)
 
-        domain, auth_names = _PROVIDER_COOKIE_CONFIG.get(
-            self._platform, (self._platform, ["session", "token", "auth"])
-        )
-
-        for cookie_file in cookie_paths:
-            if not cookie_file.exists() or cookie_file.stat().st_size == 0:
-                continue
-            try:
-                conn = sqlite3.connect(str(cookie_file))
-                cursor = conn.cursor()
-                now_chrome = int((time.time() + 11644473600) * 1_000_000)
-
-                name_conditions = " OR ".join("name LIKE ?" for _ in auth_names)
-                params: list[str | int] = [f"%{domain}%"]
-                params.extend(f"{p}%" for p in auth_names)
-                params.append(now_chrome)
-
-                cursor.execute(
-                    f"SELECT COUNT(*) FROM cookies "
-                    f"WHERE host_key LIKE ? AND is_persistent = 1 "
-                    f"AND ({name_conditions}) "
-                    f"AND (has_expires = 0 OR expires_utc > ?)",
-                    params,
-                )
-                count = cursor.fetchone()[0]
-                conn.close()
-
-                if count > 0:
-                    return SessionState.AUTHENTICATED
-                return SessionState.AUTH_EXPIRED
-
-            except Exception as exc:
-                logger.debug("%s: offline cookie check error: %s", self._platform, exc)
-                if cookie_file.stat().st_size > 1024:
-                    return SessionState.AUTHENTICATED
-
+        # Fallback: no AuthManager configured, return UNKNOWN
         return SessionState.UNKNOWN
 
     # ── Online check (DOM inspection) ─────────────────────
