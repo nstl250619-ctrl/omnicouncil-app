@@ -62,18 +62,21 @@ class RuntimeRegistry(RuntimeRegistryProtocol):
         """Return all registered platform IDs."""
         return list(self._engines.keys())
 
-    async def ensure_all_ready(self) -> dict[str, RuntimeState]:
+    async def ensure_all_ready(self, timeout_s: float = 120.0) -> dict[str, RuntimeState]:
         """Call ``ensure_ready()`` on every registered engine.
 
         Returns a mapping of platform → resulting state.
-        Engines that fail are mapped to ``UNAVAILABLE``.
+        Engines that fail or timeout are mapped to ``UNAVAILABLE``.
         """
         results: dict[str, RuntimeState] = {}
 
         async def _ensure(platform: str, engine: AIRuntimeEngine) -> None:
             try:
-                state = await engine.ensure_ready()
+                state = await asyncio.wait_for(engine.ensure_ready(), timeout=timeout_s)
                 results[platform] = state
+            except asyncio.TimeoutError:
+                logger.error("RuntimeRegistry: ensure_ready timed out for %s after %ds", platform, timeout_s)
+                results[platform] = RuntimeState.UNAVAILABLE
             except Exception as exc:
                 logger.error("RuntimeRegistry: ensure_ready failed for %s: %s", platform, exc)
                 results[platform] = RuntimeState.UNAVAILABLE
