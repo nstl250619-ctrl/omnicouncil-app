@@ -84,6 +84,15 @@ class MiMoQueryAdapter(BaseQueryAdapter):
             "MiMo", "New chat", "Settings", "Sign in", "Send", "Copy",
             "Regenerate", "Help", "History",
         }
+        # Filter out landing page footer/disclaimer text
+        footer_patterns = [
+            "Developer demo platform",
+            "Not a formal AI assistant",
+            "AI-generated content only",
+            "Citation sources",
+        ]
+        if any(p in text for p in footer_patterns):
+            return True
         return text in ui_elements or len(text) < 2
 
     async def _extract_response(self, page: Any, prompt: str, timeout_ms: int) -> str:
@@ -166,4 +175,15 @@ class MiMoQueryAdapter(BaseQueryAdapter):
         url = page.url
         if "login" in url.lower() or "signin" in url.lower() or "sign-in" in url.lower():
             return False, "login_required"
+
+        # Check if textarea has "Sign in to continue chatting" placeholder
+        try:
+            textarea = page.locator("textarea").first
+            if await textarea.is_visible(timeout=1000):
+                placeholder = await textarea.get_attribute("placeholder") or ""
+                if "sign in" in placeholder.lower():
+                    return False, "login_required"
+        except Exception:
+            pass
+
         return True, "ok"
