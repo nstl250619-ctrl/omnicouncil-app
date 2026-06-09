@@ -269,6 +269,29 @@ PLATFORM_CONFIGS: dict[str, PlatformConfig] = {
 }
 
 
+# ========== YAML config loading (Phase 5) ==========
+
+def _load_platform_configs() -> dict[str, PlatformConfig]:
+    """Load platform configs from YAML, fallback to hardcoded."""
+    from runtime.config_loader import PlatformConfigLoader
+    from pathlib import Path
+
+    providers_dir = Path(__file__).parent / "providers"
+    loader = PlatformConfigLoader(providers_dir)
+    yaml_configs = loader.load_all()
+
+    if yaml_configs:
+        logger.info("Loaded %d platform configs from YAML", len(yaml_configs))
+        # Merge: YAML overrides hardcoded for matching platforms
+        merged = dict(PLATFORM_CONFIGS)
+        for name, config in yaml_configs.items():
+            merged[name] = config
+        return merged
+    else:
+        logger.info("No YAML configs found, using hardcoded PLATFORM_CONFIGS")
+        return dict(PLATFORM_CONFIGS)
+
+
 # ========== Query adapters ==========
 
 def _create_query_adapters() -> dict:
@@ -304,7 +327,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     state.runtime_registry = runtime_registry
 
     # Create and register Runtime Engines for each platform
-    for platform, platform_config in PLATFORM_CONFIGS.items():
+    # Phase 5: load from YAML first, fallback to hardcoded
+    active_configs = _load_platform_configs()
+    for platform, platform_config in active_configs.items():
         engine = AIRuntimeEngine(config=platform_config)
         runtime_registry.register(platform, engine)
     logger.info("Runtime engines registered: %s", runtime_registry.get_platforms())
