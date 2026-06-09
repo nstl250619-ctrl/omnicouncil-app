@@ -389,6 +389,10 @@ app.add_middleware(
 # Mount HTTP routes
 register_routes(app)
 
+# Mount Dashboard API
+from api.dashboard import router as dashboard_router
+app.include_router(dashboard_router)
+
 # Mount WebSocket endpoint
 app.websocket("/ws")(websocket_endpoint)
 
