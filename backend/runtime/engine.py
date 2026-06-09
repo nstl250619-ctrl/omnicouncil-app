@@ -208,6 +208,16 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
     def is_connected(self) -> bool:
         return self._playwright is not None and self._context is not None
 
+    @property
+    def capabilities(self):
+        """Platform capability declaration."""
+        return self._config.capabilities
+
+    @property
+    def page_interaction_config(self):
+        """Page interaction configuration."""
+        return self._config.page
+
     # ── Sub-component access ───────────────────────────────
 
     def get_profile_manager(self) -> ProfileManagerABC:
