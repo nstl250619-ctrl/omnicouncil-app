@@ -234,7 +234,9 @@ def register_routes(app) -> None:
 
     @app.post("/api/providers/{name}/reauth")
     async def reauth_provider(name: str):
-        """Trigger recovery for a provider via RuntimeRegistry."""
+        """Trigger recovery for a provider. Falls back to manual login."""
+        import asyncio
+
         state = _try_state()
         if not state:
             raise HTTPException(503, "Backend not initialized")
@@ -247,14 +249,30 @@ def register_routes(app) -> None:
         if engine is None:
             raise HTTPException(404, f"Provider '{name}' not found")
 
+        # Try recovery first
         try:
             success = await engine.attempt_recovery()
             if success:
                 return {"status": "recovery_succeeded", "provider": name}
-            else:
-                return {"status": "recovery_failed", "provider": name}
-        except Exception as exc:
-            raise HTTPException(500, f"Recovery failed for '{name}': {exc}")
+        except Exception:
+            pass
+
+        # Recovery failed — open manual login in background
+        async def _do_login():
+            try:
+                success, error_msg = await engine.login(timeout_s=300)
+                if success:
+                    # Restart engine to pick up new cookies
+                    await engine.shutdown()
+                    await engine.boot()
+                    logger.info("Manual login succeeded for %s", name)
+                else:
+                    logger.warning("Manual login failed for %s: %s", name, error_msg)
+            except Exception as e:
+                logger.error("Login exception for %s: %s", name, e)
+
+        asyncio.create_task(_do_login())
+        return {"status": "login_started", "provider": name, "message": "正在打开登录窗口..."}
 
     @app.delete("/api/providers/{name}")
     async def delete_provider(name: str):
