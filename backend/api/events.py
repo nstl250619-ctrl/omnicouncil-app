@@ -327,7 +327,7 @@ async def on_all_completed(task_id: str, **kwargs):
         "results": [
             {
                 "ai_id": r.ai_id,
-                "content": r.raw_text[:500],
+                "content": r.raw_text,
                 "word_count": r.normalized.word_count,
                 "duration": r.duration,
             }
