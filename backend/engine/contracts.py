@@ -79,7 +79,7 @@ class RuntimeState(StrEnum):
 # from the key state.  ``RuntimeStateMachine.transition()`` consults this.
 TRANSITIONS: dict[RuntimeState, set[RuntimeState]] = {
     RuntimeState.UNKNOWN:          {RuntimeState.INITIALIZING},
-    RuntimeState.INITIALIZING:     {RuntimeState.PROFILE_LOADING, RuntimeState.UNAVAILABLE},
+    RuntimeState.INITIALIZING:     {RuntimeState.PROFILE_LOADING, RuntimeState.UNAVAILABLE, RuntimeState.LOGIN_REQUIRED},
     RuntimeState.PROFILE_LOADING:  {RuntimeState.SESSION_CHECKING, RuntimeState.UNAVAILABLE},
     RuntimeState.SESSION_CHECKING: {RuntimeState.READY, RuntimeState.LOGIN_REQUIRED, RuntimeState.UNAVAILABLE},
     RuntimeState.READY:            {RuntimeState.DEGRADED, RuntimeState.SHUTDOWN, RuntimeState.LOGIN_REQUIRED},

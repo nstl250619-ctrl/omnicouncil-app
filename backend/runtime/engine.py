@@ -245,7 +245,10 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
 
         UNKNOWN → INITIALIZING → PROFILE_LOADING → SESSION_CHECKING → READY
 
-        On failure at any phase, transitions to UNAVAILABLE.
+        On failure at any phase, transitions to UNAVAILABLE.  If the
+        browser launch times out (e.g. Cloudflare challenge blocking
+        navigation, or missing X display), transitions to LOGIN_REQUIRED
+        instead — the platform is still usable once the user logs in.
         """
         if self.state not in (RuntimeState.UNKNOWN, RuntimeState.SHUTDOWN, RuntimeState.UNAVAILABLE):
             logger.warning("boot() called in state %s — ignoring", self.state.value)
@@ -256,7 +259,29 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
             await self._state_machine.transition(
                 RuntimeState.INITIALIZING, reason="launching browser"
             )
-            await self._launch_browser()
+            try:
+                await self._launch_browser()
+            except asyncio.TimeoutError:
+                # Cloudflare challenge or missing X display — the browser
+                # may be partially launched.  Transition to LOGIN_REQUIRED
+                # so the platform is recoverable via user login.
+                logger.warning(
+                    "%s: browser launch timed out (cloudflare/display) "
+                    "— transitioning to LOGIN_REQUIRED",
+                    self._platform,
+                )
+                self._health_monitor.register(
+                    self._platform,
+                    self._session_validator,
+                    get_page_fn=lambda: self._page,
+                )
+                self._health_monitor.start()
+                if self._state_machine.can_transition(RuntimeState.LOGIN_REQUIRED):
+                    await self._state_machine.transition(
+                        RuntimeState.LOGIN_REQUIRED,
+                        reason="browser launch timeout (cloudflare/display)",
+                    )
+                return self.state
 
             # Phase 2: Load profile
             await self._state_machine.transition(
@@ -673,7 +698,30 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
     # ── Browser lifecycle ──────────────────────────────────
 
     async def _launch_browser(self) -> None:
-        """Launch Playwright + persistent context."""
+        """Launch Playwright + persistent context.
+
+        For platforms with ``cloudflare_check=True``, the entire launch
+        (including ``launch_persistent_context`` and initial navigation)
+        is wrapped in a framework-level timeout.  If Cloudflare blocks
+        the page or the X display is unavailable, the method returns
+        gracefully instead of hanging forever.  The session validator
+        will then report LOGIN_REQUIRED.
+        """
+        _cf = getattr(self._config.page, "cloudflare_check", False) if self._config.page else False
+        # Cloudflare platforms get a bounded launch window; others use
+        # the default (no timeout wrapper).
+        launch_timeout = 60.0 if _cf else None
+
+        if launch_timeout is not None:
+            await asyncio.wait_for(
+                self._do_launch_browser(),
+                timeout=launch_timeout,
+            )
+        else:
+            await self._do_launch_browser()
+
+    async def _do_launch_browser(self) -> None:
+        """Internal: actual browser launch + navigation logic."""
         from patchright.async_api import async_playwright
 
         self._playwright = await async_playwright().start()
@@ -768,11 +816,57 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
                     self._platform, exc,
                 )
 
-        await self._page.goto(
-            self._config.home_url,
-            wait_until="domcontentloaded",
-            timeout=30000,
-        )
+        # Navigate with "commit" — completes as soon as HTTP response
+        # headers arrive, before the document is fully parsed.  This
+        # avoids hanging on Cloudflare challenge pages where the
+        # ``domcontentloaded`` event never fires.
+        try:
+            await self._page.goto(
+                self._config.home_url,
+                wait_until="commit",
+                timeout=30000,
+            )
+        except Exception as exc:
+            # Cloudflare redirect may intercept before any response
+            # commits.  Log and continue — the page is usable even
+            # if it's still at about:blank.
+            logger.warning(
+                "%s: navigation commit failed (%s) — continuing with current page state",
+                self._platform, exc,
+            )
+
+        # Try to wait for the page to fully load.  Cloudflare challenge
+        # pages keep the document in ``loading`` readyState indefinitely,
+        # so we bound the wait and continue regardless.
+        _cf = getattr(self._config.page, "cloudflare_check", False) if self._config.page else False
+        if _cf:
+            try:
+                await self._page.wait_for_load_state(
+                    "domcontentloaded", timeout=15000,
+                )
+            except Exception:
+                # Cloudflare challenge or slow page — continue with
+                # whatever state the page is in.  The session validator
+                # will detect the challenge and report LOGIN_REQUIRED.
+                title = ""
+                with contextlib.suppress(Exception):
+                    title = await self._page.title()
+                logger.warning(
+                    "%s: page did not reach domcontentloaded "
+                    "(cloudflare_check=True, title=%r) — continuing",
+                    self._platform, title,
+                )
+        else:
+            try:
+                await self._page.wait_for_load_state(
+                    "domcontentloaded", timeout=30000,
+                )
+            except Exception:
+                logger.debug(
+                    "%s: domcontentloaded timeout — continuing", self._platform,
+                )
+
+        # Stabilization wait for JS frameworks to hydrate
         await self._page.wait_for_timeout(2000)
 
         self._page_created_at = time.time()
@@ -784,7 +878,12 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
         )
 
     async def _close_browser(self) -> None:
-        """Close browser context and playwright."""
+        """Close browser context and playwright.
+
+        After Playwright cleanup, performs a process-level sweep to kill
+        any orphan Chromium processes still holding the profile directory.
+        This prevents ``SingletonLock`` conflicts on next boot.
+        """
         if self._page is not None:
             with contextlib.suppress(Exception):
                 await self._page.close()
@@ -800,7 +899,48 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
                 await self._playwright.stop()
             self._playwright = None
 
+        # Process-level cleanup: kill orphan Chromium instances and
+        # remove lock files so the next boot can acquire the profile.
+        await self._cleanup_orphan_chromium()
+
         logger.info("%s: browser closed", self._platform)
+
+    async def _cleanup_orphan_chromium(self) -> None:
+        """Kill orphan Chromium processes and remove profile lock files."""
+        import subprocess
+        from pathlib import Path
+
+        try:
+            profile_path = self._profile_manager.get_profile_path(self._platform)
+            profile_str = str(profile_path)
+
+            # Kill any chromium process still using this profile directory
+            result = subprocess.run(  # noqa: S603, S607
+                ["pgrep", "-f", profile_str],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.stdout.strip():
+                pids = result.stdout.strip().split("\n")
+                for pid in pids:
+                    pid = pid.strip()
+                    if pid:
+                        logger.warning(
+                            "%s: killing orphan Chromium process PID=%s",
+                            self._platform, pid,
+                        )
+                        subprocess.run(["kill", pid], timeout=5)  # noqa: S603, S607
+
+            # Remove Chromium lock files
+            for lock_name in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+                lock_file = profile_path / lock_name
+                if lock_file.exists():
+                    lock_file.unlink()
+                    logger.info("%s: removed %s", self._platform, lock_name)
+
+        except Exception as exc:
+            logger.debug("%s: orphan cleanup skipped (%s)", self._platform, exc)
 
     async def _recreate_page(self) -> None:
         """Create a fresh Page after an eviction (Phase 7 P0-2).
@@ -812,11 +952,37 @@ class AIRuntimeEngine(AIRuntimeEngineABC):
             await self._launch_browser()
             return
         self._page = await self._context.new_page()
-        await self._page.goto(
-            self._config.home_url,
-            wait_until="domcontentloaded",
-            timeout=30000,
-        )
+
+        # Same Cloudflare-aware navigation as _launch_browser()
+        try:
+            await self._page.goto(
+                self._config.home_url,
+                wait_until="commit",
+                timeout=30000,
+            )
+        except Exception as exc:
+            logger.warning(
+                "%s: recreate — navigation commit failed (%s)", self._platform, exc,
+            )
+        _cf = getattr(self._config.page, "cloudflare_check", False) if self._config.page else False
+        if _cf:
+            try:
+                await self._page.wait_for_load_state(
+                    "domcontentloaded", timeout=15000,
+                )
+            except Exception:
+                logger.warning(
+                    "%s: recreate — domcontentloaded timeout (cloudflare_check=True)",
+                    self._platform,
+                )
+        else:
+            try:
+                await self._page.wait_for_load_state(
+                    "domcontentloaded", timeout=30000,
+                )
+            except Exception:
+                pass
+
         await self._page.wait_for_timeout(2000)
         self._page_created_at = time.time()
         self._page_last_used = time.time()

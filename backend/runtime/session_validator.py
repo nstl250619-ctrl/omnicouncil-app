@@ -48,16 +48,30 @@ class OnlineCheckStrategy(ABC):
 
 
 class DefaultOnlineCheck(OnlineCheckStrategy):
-    """Default online check: URL-based + input element presence."""
+    """Default online check: URL-based + input element presence.
 
-    def __init__(self, platform: str) -> None:
+    After initial page load (``domcontentloaded``), many SPAs redirect
+    to an auth/login page via JavaScript.  This check waits for the
+    network to settle before inspecting the DOM, and re-checks the URL
+    to catch late redirects (e.g. Google → accounts.google.com).
+    """
+
+    def __init__(self, platform: str, home_url: str = "") -> None:
         self._platform = platform
+        self._home_url = home_url
 
     async def check(self, page: Any) -> bool:
         try:
+            # Wait for network to settle — catches JS-driven auth redirects
+            # that fire after domcontentloaded (e.g. Google, Microsoft).
+            try:
+                await page.wait_for_load_state("networkidle", timeout=5000)
+            except Exception:
+                pass  # Timeout is acceptable; proceed with current state
+
             url = page.url
 
-            # Check for login page URLs
+            # Re-check URL for login patterns (catches late redirects)
             for pattern in _LOGIN_URL_PATTERNS:
                 if pattern in url.lower():
                     return False
@@ -69,6 +83,22 @@ class DefaultOnlineCheck(OnlineCheckStrategy):
                     return False
             except Exception:
                 return False
+
+            # Check for login/account indicators — if present, not authenticated
+            login_selectors = [
+                'button:has-text("Sign in")',
+                'button:has-text("Log in")',
+                'button:has-text("登录")',
+                'a:has-text("Sign in")',
+                'a:has-text("Log in")',
+            ]
+            for selector in login_selectors:
+                try:
+                    el = page.locator(selector).first
+                    if await el.is_visible(timeout=1000):
+                        return False
+                except Exception:
+                    continue
 
             # Check for input element (indicates logged-in chat page)
             for selector in ["textarea", "[contenteditable='true']", "[role='textbox']"]:
@@ -175,11 +205,14 @@ class SessionValidator:
         # Select online check strategy
         strategy_cls = _ONLINE_STRATEGIES.get(platform, DefaultOnlineCheck)
         # QianwenOnlineCheck and ChatGPTOnlineCheck take no args;
-        # DefaultOnlineCheck takes platform.
-        try:
-            self._online_strategy: OnlineCheckStrategy = strategy_cls(platform)
-        except TypeError:
-            self._online_strategy = strategy_cls()  # type: ignore[call-arg]
+        # DefaultOnlineCheck takes platform + home_url.
+        if strategy_cls is DefaultOnlineCheck:
+            self._online_strategy = DefaultOnlineCheck(platform, home_url)
+        else:
+            try:
+                self._online_strategy = strategy_cls(platform)
+            except TypeError:
+                self._online_strategy = strategy_cls()  # type: ignore[call-arg]
 
     # ── Public API ─────────────────────────────────────────
 
