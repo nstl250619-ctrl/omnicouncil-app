@@ -18,6 +18,9 @@
   _find_input, _extract_response, _try_selector_extraction, _try_body_extraction, _is_ui_element, pre_flight_check
 - 禁止在 Provider adapter 中硬编码 CSS 选择器、Cookie 域名、Cookie 名称——这些必须来自 YAML 配置
 - 禁止新建与现有框架能力重复的模块
+- 禁止在前端硬编码后端端口或 IP——必须通过 `import.meta.env.VITE_API_BASE_URL` 和 `import.meta.env.VITE_WS_URL` 读取，配置来源为 `.env` 文件
+- 禁止在前端硬编码 Provider 列表——必须从后端 API 或 `useAppStore.aiList` 动态获取
+- 禁止在 commit message 中声称"已完成"但实际遗漏设计方案中的任务——commit message 必须与 `git diff --stat` 实际改动一致
 
 ### 3. 修复流程（必须按顺序执行）
 
@@ -34,3 +37,12 @@
 
 ❌ Grok 找不到输入框 → 在 GrokQueryAdapter 中写 _find_input 方法
 ✅ Grok 找不到输入框 → 检查 provider.yaml 中的 input_selectors 是否正确，修正 YAML 配置
+
+### 5. 设计方案执行验证清单
+
+每次执行设计方案后，commit 前必须逐项核对：
+- [ ] 设计方案中的每个视图/页面是否已实现
+- [ ] 每个新增组件是否被至少一个页面导入和使用
+- [ ] 所有 API 调用是否使用 `import.meta.env.VITE_API_BASE_URL`
+- [ ] `scripts/verify_frontend_completeness.sh` 通过
+- [ ] commit message 中列出的"已完成"项是否与 `git diff --stat` 一致
